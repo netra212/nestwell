@@ -30,19 +30,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MapResults, MapViewToggle } from "@/components/map/MapResults";
+import { SaveSearchButton } from "./SaveSearchButton";
 import { SearchBar } from "./search-bar";
 import { FilterChips } from "./filter-chips";
 import { ClarifyingQuestions } from "./clarifying-questions";
 import type { SearchState } from "@/hooks/use-search-params-state";
 import type { PropertyResults } from "@/lib/property-types";
 
-export function ResultsPage() {
+export function ResultsPage({ mapboxToken }: { mapboxToken?: string }) {
   const filters = useSearchParamsState();
   const { state: rawState, query, update: rawUpdate, reset } = filters;
   const [open, setOpen] = useState(false);
   // view is presentation-only; keep it in the URL while excluding it from API validation.
   const apiParams = new URLSearchParams(query);
   apiParams.delete("view");
+  if (rawState.view === "map" && mapboxToken) apiParams.delete("page");
   const apiQuery = apiParams.toString();
   const results = useQuery<PropertyResults>({
     queryKey: ["properties", apiQuery],
@@ -91,7 +94,12 @@ export function ResultsPage() {
     );
   const page = data?.page || Number(state.page) || 1;
   const pages = Math.ceil((data?.total || 0) / (data?.pageSize || 20));
-  const view = state.view === "list" ? "list" : "grid";
+  const view =
+    state.view === "map" && mapboxToken
+      ? "map"
+      : state.view === "list"
+        ? "list"
+        : "grid";
   const sorting = state.sort || (state.q ? "relevance" : "newest");
   const sortLabels: Record<string, string> = {
     newest: "Newest listed",
@@ -173,6 +181,7 @@ export function ResultsPage() {
           </aside>
           <section className="min-w-0 flex-1" aria-label="Property results">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+              <SaveSearchButton query={query} />
               <div className="flex items-center gap-3">
                 <Button
                   variant="outline"
@@ -251,6 +260,11 @@ export function ResultsPage() {
                   >
                     <List className="size-4" />
                   </Button>
+                  <MapViewToggle
+                    available={!!mapboxToken}
+                    active={view === "map"}
+                    onClick={() => update({ view: "map" }, true)}
+                  />
                 </div>
               </div>
             </div>
@@ -297,6 +311,12 @@ export function ResultsPage() {
                   </Button>
                 )}
               </div>
+            ) : view === "map" && mapboxToken ? (
+              <MapResults
+                token={mapboxToken}
+                query={apiQuery}
+                onClose={() => update({ view: "grid" }, true, false)}
+              />
             ) : (
               <div
                 aria-busy={results.isFetching}
@@ -313,14 +333,14 @@ export function ResultsPage() {
                     <PropertyCard
                       key={property.id}
                       property={property}
-                      view={view}
+                      view={view === "map" ? "grid" : view}
                       priority={index < 3}
                     />
                   ))}
                 </div>
               </div>
             )}
-            {!!data?.results.length && !results.isError && (
+            {!!data?.results.length && !results.isError && view !== "map" && (
               <nav
                 aria-label="Pagination"
                 className="mt-10 flex flex-wrap items-center justify-center gap-2 pb-6"

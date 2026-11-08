@@ -1,3 +1,4 @@
+import { RecentlyViewed } from "@/components/property/recently-viewed";
 import Link from "next/link";
 import { ArrowUpRight, Check, Sparkles } from "lucide-react";
 import { db } from "@/lib/db";
@@ -130,6 +131,7 @@ export default async function Home() {
             ))}
           </div>
         </section>
+        <RecentlyViewed />
         <footer className="mt-14 border-t py-8 text-center text-xs text-muted-foreground">
           A new home. A fresh start. A little more you.{" "}
           <span className="font-semibold text-primary">nestwell.</span>

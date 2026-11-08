@@ -1,9 +1,9 @@
-# Nestwell — Phases 1–4
+# Nestwell — Phases 1–5
 
 Next.js 15 App Router, React 19, TypeScript, Tailwind CSS 4, shadcn/ui,
 Prisma 6, PostgreSQL 16 and Zod. Natural-language and traditional search are available at `/for-sale`, with a
 search hero at `/`. Browser voice input is available on supported browsers;
-authentication is reserved for a later phase.
+demo email authentication, saved homes/searches and enquiries are available.
 
 ## Run locally
 
@@ -48,7 +48,7 @@ Environment secrets and local `.env` files are ignored by Git.
   and may repeat; bundled copies are used in the Phase 2 UI.
 - Demo users: `emma.wilson@example.com` (3 favorites, 1 saved search) and
   `oliver.taylor@example.com` (4 favorites, 2 saved searches). These are records,
-  not login accounts; authentication is not implemented yet.
+  available through the Phase 5 demo sign-in form.
 - Idempotent upserts use agent email, property address + postcode, user email,
   property image order, user + property favorites, and user + saved-search name.
   A transaction and advisory lock make failures atomic and concurrent reruns
@@ -66,8 +66,8 @@ No OpenAI, Mapbox, authentication or Redis service is called in Phase 1.
 
 Visit `/for-sale` to browse listings and `/property/<id>` for a listing’s details.
 The Buy and Rent navigation links open the corresponding results. Sold and
-Agents remain stubs. Persistent saves and sending contact enquiries are deferred. Voice search is
-implemented in Phase 4 below.
+Agents remain stubs. Favorites, saved searches and enquiries are implemented in Phase 5 below.
+Voice search is described in Phase 4.
 Natural-language search is implemented in Phase 3 below.
 
 ### Search API
@@ -75,7 +75,7 @@ Natural-language search is implemented in Phase 3 below.
 `GET /api/properties` returns `{ results, total, page, pageSize }`. Each listing
 includes its agent’s name/logo and its first ordered image. `GET
 /api/properties/<id>` returns the full listing, all ordered images, full agent
-and `similarProperties: []`. Missing properties return HTTP 404.
+and matching `similarProperties`. Missing properties return HTTP 404.
 
 Supported query parameters:
 
@@ -115,8 +115,8 @@ in the URL for presentation. TanStack Query retains and dims previous results
 while loading a new query. An invalid URL shows a recoverable error state;
 empty searches offer Reset. Reset restores default SALE results.
 
-Contact form validation is local Zod validation only; no enquiry is transmitted
-or stored. Save buttons show a preview toast and do not write favorites.
+Contact enquiries now validate and store records through the authenticated
+Phase 5 endpoint. Save buttons update the signed-in user’s favorites.
 
 ### Images
 
@@ -314,3 +314,113 @@ Chrome/Edge and Safari devices before release.
 Phase 4 production verification: Lighthouse Accessibility **100/100** on both
 home and `/for-sale`, with 47 unit tests, 15 integration checks and eight
 Chromium browser tests passing.
+
+## Phase 5 — accounts, saved collections and maps
+
+### Demo sign-in
+
+`/sign-in` contains one email field. The NextAuth credentials provider accepts
+any valid email and any/omitted demo password, finds or creates that user, and
+issues an encrypted JWT in an HttpOnly, SameSite=Lax **browser-session cookie**.
+No token is stored in localStorage and no session database adapter is needed.
+The JWT also has a one-day expiry. Sign out clears the cookie. Browsing,
+traditional/AI search, property details and similar listings remain public.
+
+Use `emma.wilson@example.com` or `oliver.taylor@example.com` for the seeded
+accounts. Email identity is deliberately unverified for this demo; replace the
+credentials provider with verified authentication before using real accounts.
+Set `NEXTAUTH_URL` to the app's actual origin and `NEXTAUTH_SECRET` to a stable
+random secret for deployment. If the secret is absent, the single-process demo
+uses an ephemeral random secret; restarting logs users out and separate
+instances cannot share those sessions.
+
+The header shows Saved and Sign in/Sign out. `/saved` requires sign-in. Favorites
+and saved searches are scoped to the session's server-side user ID; client
+`userId` fields are rejected. Mutation endpoints additionally reject a supplied
+cross-origin Origin header. Keep forwarded host/origin configuration correct
+behind a reverse proxy.
+
+### User APIs
+
+| Endpoint                            | Behavior                                                                        |
+| ----------------------------------- | ------------------------------------------------------------------------------- |
+| `GET /api/favorites`                | Own `{ results, propertyIds }`, with agent and first image                      |
+| `POST /api/favorites`               | `{ propertyId }`; idempotently save a property                                  |
+| `DELETE /api/favorites/:propertyId` | Remove only the session user's favorite; idempotent                             |
+| `GET /api/saved-searches`           | Own `{ results }`                                                               |
+| `POST /api/saved-searches`          | `{ name?, rawQuery?, filters }`; validated URL filters, optional arrays/numbers |
+| `DELETE /api/saved-searches/:id`    | Delete an owned search; other users' IDs return 404                             |
+| `POST /api/enquiries`               | `{ propertyId, name, email, phone?, message, website? }`                        |
+
+All listed reads/writes require a session and unauthenticated calls return 401.
+Favorite hearts on cards and details update optimistically through a shared
+TanStack Query cache keyed by user ID; failures roll back the affected property
+without erasing other concurrent changes. `/saved` reuses `PropertyCard` and
+provides saved-search Run/Delete actions. Search replay retains query, sort,
+view, explicit overrides and chip omissions. Legacy seeded pence-based
+`maxPrice`/`minPrice` and room aliases are converted to URL pounds/room keys.
+Provided saved-search names are unique per user (duplicates return 409);
+unnamed searches may be saved independently.
+
+The agent form pre-fills available account details, validates with Zod, and
+stores enquiries in PostgreSQL. Submission confirms receipt; agent email
+notifications are outside this phase. The hidden `website` honeypot returns a
+success response without storing a bot submission. Authenticated attempts are
+limited to one per ten seconds/IP with HTTP 429 and Retry-After. This limiter is
+process-local; use a shared store such as Redis for multiple instances, and
+configure ingress to overwrite forwarded IP headers.
+
+### Map view
+
+Set **`MAPBOX_TOKEN=pk.…`** to a public, browser-scoped Mapbox token, then restart
+the server. `/for-sale` reads it at request time; secret `sk.` tokens are never
+passed to the client. Missing/non-public tokens disable Map with a keyboard-
+and hover-accessible tooltip. The Mapbox SDK loads only when the view is used.
+Connection/token/WebGL failures show a useful error while Grid/List remain
+available.
+
+Map fetches all matching pages (50 at a time), plots longitude/latitude GeoJSON
+with stable property IDs, and clusters points at low zoom. Cluster clicks zoom
+in; pin and “Show on map” selections synchronize highlighting and a safe detail
+link popup. List selections zoom to an individual pin. Desktop uses a split
+map/list pane; mobile uses a focus-trapped full-screen dialog with a collapsible
+bottom list, Close map action and Escape support. Map movement respects reduced
+motion. Mapbox's live service requires a configured working token; SDK mocks
+exercise clustering, selection, popup links, WebGL fallback and cleanup without
+external credentials.
+
+### Similar and recently viewed homes
+
+`GET /api/properties/:id/similar` returns `{ results }`: same city, type and
+listing type, price within ±30%, bedrooms within ±1, excluding self, at most
+six. Full property responses and the detail page use the same logic. When no
+matches exist, the section offers a city/type browsing link.
+
+The home page's Recently viewed strip reads the last eight unique property IDs
+from `nestwell.recently-viewed.v1` in localStorage, most recent first. Details
+record a view on mount. Malformed or unavailable storage is handled quietly;
+missing properties are omitted. History is browser-local and independent of
+account favorites.
+
+### Phase 5 verification
+
+```sh
+pnpm test
+pnpm test:integration
+# With a running server and an installed Chromium:
+CHROME_PATH=/usr/bin/chromium pnpm test:browser
+pnpm build
+```
+
+The browser suite uses two seeded accounts for ownership and isolated temporary
+users for sign-in, favorite rollback, saved-search replay/deletion and enquiry
+submission/spam checks. Temporary test-user records are cleaned up. Unit tests
+cover map SDK interactions, all-page map fetching, token handling, recent IDs,
+saved URL normalization and enquiry validation/rate limiting. Live Mapbox tile
+rendering is a separate check when a valid token is available.
+
+Phase 5 production verification passed: **58 unit tests**, **15 API integration
+checks**, **13 Chromium browser tests**, and `pnpm build`. Lighthouse
+Accessibility remains **100/100** on home and results. Two-account ownership and
+optimistic rollback were exercised against PostgreSQL; Mapbox SDK behavior was
+mocked because no live public token is configured.

@@ -1,6 +1,8 @@
+import { publicMapboxToken } from "@/lib/map-config";
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { ResultsPage, ResultsSkeleton } from "@/components/search/results-page";
+export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Properties for sale & rent | Nestwell",
   description:
@@ -15,7 +17,7 @@ export default function ForSale() {
         </main>
       }
     >
-      <ResultsPage />
+      <ResultsPage mapboxToken={publicMapboxToken()} />
     </Suspense>
   );
 }

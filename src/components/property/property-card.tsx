@@ -1,9 +1,9 @@
 "use client";
 import Link from "next/link";
-import { Bath, BedDouble, Heart, Armchair, ArrowUpRight } from "lucide-react";
+import { Bath, BedDouble, Armchair, ArrowUpRight } from "lucide-react";
 import { PropertyImage } from "./property-image";
 import { Button } from "@/components/ui/button";
-import { toast } from "@/hooks/use-toast";
+import { FavoriteButton } from "./FavoriteButton";
 import { formatPrice, labelFor } from "@/lib/property-options";
 import type { PropertyResult } from "@/lib/property-types";
 import { cn } from "@/lib/utils";
@@ -12,9 +12,13 @@ export function PropertyCard({
   property: p,
   view = "grid",
   priority = false,
+  onSelectMap,
+  selected = false,
 }: {
   property: PropertyResult;
-  view?: "grid" | "list";
+  view?: "grid" | "list" | "compact";
+  onSelectMap?: () => void;
+  selected?: boolean;
   priority?: boolean;
 }) {
   const href = `/property/${p.id}`;
@@ -23,12 +27,15 @@ export function PropertyCard({
       className={cn(
         "group overflow-hidden rounded-2xl border bg-white shadow-xs transition-shadow hover:shadow-md",
         view === "list" && "sm:flex",
+        view === "compact" && "flex",
+        selected && "ring-2 ring-primary",
       )}
     >
       <div
         className={cn(
           "relative aspect-[1.55] shrink-0 overflow-hidden bg-muted",
           view === "list" && "sm:aspect-auto sm:w-[38%] sm:min-h-64",
+          view === "compact" && "aspect-auto w-[35%] min-h-48",
         )}
       >
         <Link
@@ -41,7 +48,7 @@ export function PropertyCard({
             alt={`${p.title} — ${p.addressLine}, ${p.city}, ${p.postcode}. ${p.images[0]?.alt || "Property photograph"}`}
             fill
             sizes={
-              view === "list"
+              view !== "grid"
                 ? "(max-width: 640px) 100vw, 400px"
                 : "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             }
@@ -56,20 +63,12 @@ export function PropertyCard({
               : "To rent"
             : labelFor(p.status)}
         </span>
-        <Button
-          aria-label={`Save ${p.addressLine}`}
-          variant="secondary"
-          size="icon"
+        <FavoriteButton
+          propertyId={p.id}
+          address={p.addressLine}
+          property={p}
           className="absolute top-3 right-3 rounded-full bg-white/95"
-          onClick={() =>
-            toast({
-              title: "Make yourself at home",
-              description: "Saving properties is coming in Phase 5.",
-            })
-          }
-        >
-          <Heart className="size-4" />
-        </Button>
+        />
         <span className="absolute bottom-3 left-3 rounded-md bg-black/55 px-2 py-1 text-[10px] text-white">
           Illustrative photo
         </span>
@@ -126,6 +125,17 @@ export function PropertyCard({
             </p>
           )}
         </div>
+        {onSelectMap && (
+          <Button
+            variant="ghost"
+            aria-pressed={selected}
+            onClick={onSelectMap}
+            className="mx-4 mb-2"
+            aria-label={`Show on map: ${p.addressLine}`}
+          >
+            Show on map
+          </Button>
+        )}
         <div className="flex items-center gap-2.5 border-t bg-[#fcfbfd] px-5 py-3">
           <AgentLogo name={p.agent.name} logoUrl={p.agent.logoUrl} />
           <span className="truncate text-[11px] font-medium text-[#675b73]">

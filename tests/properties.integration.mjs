@@ -150,7 +150,7 @@ test("invalid parameters have structured 400 errors", async () => {
     assert.ok(Array.isArray(body.error.details));
   }
 });
-test("detail includes all images in order, agent and empty similar stub", async () => {
+test("detail includes ordered images, agent and valid similar properties", async () => {
   assert.ok(all.length, "Seed the DB first");
   for (const p of all) {
     const { status, body } = await get(`/api/properties/${p.id}`);
@@ -161,7 +161,18 @@ test("detail includes all images in order, agent and empty similar stub", async 
       body.images.map((i) => i.id),
       p.images.map((i) => i.id),
     );
-    assert.deepEqual(body.similarProperties, []);
+    assert.ok(body.similarProperties.length <= 6);
+    for (const similar of body.similarProperties) {
+      assert.notEqual(similar.id, p.id);
+      assert.equal(similar.city, p.city);
+      assert.equal(similar.propertyType, p.propertyType);
+      assert.equal(similar.listingType, p.listingType);
+      assert.ok(
+        similar.price >= Math.ceil(p.price * 0.7) &&
+          similar.price <= Math.floor(p.price * 1.3),
+      );
+      assert.ok(Math.abs(similar.bedrooms - p.bedrooms) <= 1);
+    }
   }
   const missing = await get("/api/properties/not-a-real-property");
   assert.equal(missing.status, 404);

@@ -12,6 +12,10 @@ import { getProperty } from "@/lib/properties";
 import { formatPrice, labelFor } from "@/lib/property-options";
 import { PropertyGallery } from "@/components/property/property-gallery";
 import { AgentContact } from "@/components/property/agent-contact";
+import { similarProperties } from "@/lib/similar-properties";
+import { FavoriteButton } from "@/components/property/FavoriteButton";
+import { PropertyCard } from "@/components/property/property-card";
+import { TrackViewed } from "@/components/property/recently-viewed";
 import { Badge } from "@/components/ui/badge";
 export const dynamic = "force-dynamic";
 export default async function PropertyPage({
@@ -23,8 +27,10 @@ export default async function PropertyPage({
   const property = await getProperty(id);
   if (!property) notFound();
   const p = property;
+  const similar = await similarProperties(p);
   return (
     <main id="main-content" className="min-h-screen bg-[#faf9fc]">
+      <TrackViewed propertyId={p.id} />
       <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8">
         <Link
           href="/for-sale"
@@ -56,6 +62,18 @@ export default async function PropertyPage({
                     : "To rent"
                   : labelFor(p.status)}
               </Badge>
+            </div>
+            <div className="mt-5">
+              <FavoriteButton
+                propertyId={p.id}
+                address={p.addressLine}
+                property={{
+                  ...p,
+                  createdAt: p.createdAt.toISOString(),
+                  updatedAt: p.updatedAt.toISOString(),
+                }}
+                showLabel
+              />
             </div>
             <h1 className="mt-6 text-2xl font-bold tracking-tight">
               {p.title}
@@ -107,17 +125,37 @@ export default async function PropertyPage({
                 ))}
               </ul>
             </section>
-            <section className="mt-3 rounded-xl border border-dashed p-6">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold">Similar properties</h2>
-                <Badge variant="secondary">Coming soon</Badge>
-              </div>
-              <p className="mt-3 text-sm text-muted-foreground">
-                More places you might love, coming in a future phase.
-              </p>
+            <section className="mt-3 border-t pt-7">
+              <h2 className="mb-5 text-xl font-semibold">Similar properties</h2>
+              {similar.length ? (
+                <div className="grid gap-5 sm:grid-cols-2">
+                  {similar.map((home) => (
+                    <PropertyCard
+                      key={home.id}
+                      property={{
+                        ...home,
+                        createdAt: home.createdAt.toISOString(),
+                        updatedAt: home.updatedAt.toISOString(),
+                      }}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border bg-white p-6">
+                  <p className="text-sm text-muted-foreground">
+                    No similar homes are available right now.
+                  </p>
+                  <Link
+                    href={`/for-sale?${new URLSearchParams({ city: p.city, propertyTypes: p.propertyType })}`}
+                    className="mt-3 inline-block text-sm text-primary underline"
+                  >
+                    Explore more homes in {p.city}
+                  </Link>
+                </div>
+              )}
             </section>
           </div>
-          <AgentContact agent={p.agent} />
+          <AgentContact agent={p.agent} propertyId={p.id} />
         </div>
       </div>
     </main>

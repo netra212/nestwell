@@ -1,3 +1,4 @@
+import { similarProperties } from "@/lib/similar-properties";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getProperty } from "@/lib/properties";
@@ -22,7 +23,10 @@ export async function GET(
   try {
     const property = await getProperty(parsed.data);
     if (!property) return apiError(404, "NOT_FOUND", "Property not found");
-    return NextResponse.json({ ...property, similarProperties: [] });
+    return NextResponse.json({
+      ...property,
+      similarProperties: await similarProperties(property),
+    });
   } catch (error) {
     console.error("Property lookup failed", error);
     return apiError(

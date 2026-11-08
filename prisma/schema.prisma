@@ -117,15 +117,20 @@ model SavedSearch {
 }
 
 model SearchQuery {
-  id         String   @id @default(cuid())
-  rawQuery   String
-  parsed     Json
-  modelUsed  String?
-  latencyMs  Int?
-  confidence Float?
-  createdAt  DateTime @default(now())
+  providerConfigured Boolean   @default(false)
+  queryHash          String?
+  cacheExpiresAt     DateTime?
+  cached             Boolean   @default(false)
+  id                 String    @id @default(cuid())
+  rawQuery           String
+  parsed             Json
+  modelUsed          String?
+  latencyMs          Int?
+  confidence         Float?
+  createdAt          DateTime  @default(now())
 
   @@index([createdAt])
+  @@index([queryHash, cacheExpiresAt])
 }
 
 model Enquiry {

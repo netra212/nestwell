@@ -28,6 +28,24 @@ const csv = <T extends readonly [string, ...string[]]>(values: T) =>
     .transform((values) => [...new Set(values)]);
 export const propertyQuerySchema = z
   .object({
+    q: z.string().trim().min(1).max(300).optional(),
+    softPreferences: z
+      .string()
+      .max(500)
+      .transform((s) =>
+        s
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+      )
+      .optional(),
+    featureMode: z.enum(["ranked", "required"]).optional(),
+    parser: z.enum(["keyword"]).optional(),
+    omit: z
+      .string()
+      .max(300)
+      .regex(/^[a-zA-Z,]*$/)
+      .optional(),
     listingType: z.enum(["SALE", "RENT"]).default("SALE"),
     city: z.string().trim().min(1).max(100).optional(),
     postcode: z.string().trim().min(1).max(12).optional(),
@@ -40,6 +58,7 @@ export const propertyQuerySchema = z
     bedsMin: numeric(0, 100, true).optional(),
     bedsMax: numeric(0, 100, true).optional(),
     bathsMin: numeric(0, 100, true).optional(),
+    bathsMax: numeric(0, 100, true).optional(),
     propertyTypes: csv(PROPERTY_TYPES).optional(),
     features: csv(FEATURES).optional(),
     sort: z
@@ -68,6 +87,16 @@ export const propertyQuerySchema = z
         code: "custom",
         path: ["bedsMax"],
         message: "Maximum bedrooms must be at least minimum bedrooms",
+      });
+    if (
+      q.bathsMin !== undefined &&
+      q.bathsMax !== undefined &&
+      q.bathsMin > q.bathsMax
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["bathsMax"],
+        message: "Maximum bathrooms must be at least minimum bathrooms",
       });
     if ((q.lat === undefined) !== (q.lng === undefined))
       ctx.addIssue({

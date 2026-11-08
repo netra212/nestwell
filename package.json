@@ -11,7 +11,9 @@
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset",
     "postinstall": "prisma generate",
-    "test:integration": "node --env-file=.env --test tests/properties.integration.mjs"
+    "test:integration": "node --env-file=.env --test tests/*.integration.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -22,6 +24,7 @@
     "cn": "^0.5.2",
     "lucide-react": "^1.70.0",
     "next": "15.5.29",
+    "openai": "^7.53.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "shadcn": "^4.23.0",
@@ -39,7 +42,8 @@
     "prisma": "^6.19.3",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.1.0"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

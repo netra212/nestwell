@@ -30,11 +30,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchBar } from "./search-bar";
+import { FilterChips } from "./filter-chips";
+import { ClarifyingQuestions } from "./clarifying-questions";
+import type { SearchState } from "@/hooks/use-search-params-state";
 import type { PropertyResults } from "@/lib/property-types";
 
 export function ResultsPage() {
   const filters = useSearchParamsState();
-  const { state, query, update, reset } = filters;
+  const { state: rawState, query, update: rawUpdate, reset } = filters;
   const [open, setOpen] = useState(false);
   // view is presentation-only; keep it in the URL while excluding it from API validation.
   const apiParams = new URLSearchParams(query);
@@ -58,13 +62,40 @@ export function ResultsPage() {
     },
   });
   const data = results.data;
+  const inherited =
+    data?.searchQuery === rawState.q ? { ...data.filterState } : {};
+  for (const key of rawState.omit?.split(",") || []) delete inherited[key];
+  const state = { ...inherited, ...rawState };
+  const update = (patch: SearchState, immediate = false, resetPage = true) => {
+    if (patch.radiusKm && !rawState.lat && state.lat && state.lng)
+      patch = { ...patch, lat: state.lat, lng: state.lng };
+    rawUpdate(patch, immediate, resetPage);
+  };
+  const visibleFilters = {
+    ...filters,
+    state,
+    update: (patch: SearchState, immediate = false, resetPage = true) =>
+      update(
+        patch.features !== undefined
+          ? { ...patch, featureMode: "required" }
+          : patch,
+        immediate,
+        resetPage,
+      ),
+  };
+  const updateChip = (patch: SearchState) =>
+    update(
+      patch.features !== undefined
+        ? { ...patch, featureMode: state.featureMode || "required" }
+        : patch,
+    );
   const page = data?.page || Number(state.page) || 1;
   const pages = Math.ceil((data?.total || 0) / (data?.pageSize || 20));
   const view = state.view === "list" ? "list" : "grid";
-  const sorting = state.sort || "newest";
+  const sorting = state.sort || (state.q ? "relevance" : "newest");
   const sortLabels: Record<string, string> = {
     newest: "Newest listed",
-    relevance: "Newest listed",
+    relevance: "Best match",
     price_asc: "Price ↑",
     price_desc: "Price ↓",
   };
@@ -84,6 +115,14 @@ export function ResultsPage() {
   ].filter((k) => state[k]).length;
   return (
     <main id="main-content" className="min-h-screen bg-[#faf9fc]">
+      <div className="border-b bg-[#f5f1f9]">
+        <div className="mx-auto max-w-[1600px] px-5 py-6 sm:px-8">
+          <div className="max-w-4xl">
+            <SearchBar initialQuery={state.q || ""} />
+            <FilterChips state={state} update={updateChip} />
+          </div>
+        </div>
+      </div>
       <div className="mx-auto max-w-[1600px] px-5 py-7 sm:px-8">
         <p className="mb-6 flex items-center gap-2 text-[11px] text-muted-foreground">
           <span>Home</span>
@@ -117,12 +156,20 @@ export function ResultsPage() {
             <ArrowRight className="size-4 text-primary" />
           </span>
         </div>
+        {data?.parsed && state.q && data.searchQuery === state.q && (
+          <ClarifyingQuestions
+            key={state.q}
+            parsed={data.parsed}
+            query={state.q}
+            modelUsed={data.modelUsed}
+          />
+        )}
         <div className="flex items-start gap-7">
           <aside
             aria-label="Property filters"
             className="hidden w-64 shrink-0 rounded-2xl border bg-white p-5 lg:block"
           >
-            <FilterPanel {...filters} />
+            <FilterPanel {...visibleFilters} />
           </aside>
           <section className="min-w-0 flex-1" aria-label="Property results">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
@@ -174,6 +221,7 @@ export function ResultsPage() {
                     <SelectValue>{sortLabels[sorting] || sorting}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="relevance">Best match</SelectItem>
                     <SelectItem value="newest">Newest listed</SelectItem>
                     <SelectItem value="price_asc">Price ↑</SelectItem>
                     <SelectItem value="price_desc">Price ↓</SelectItem>
@@ -341,7 +389,7 @@ export function ResultsPage() {
           </SheetHeader>
           <div className="px-5 pb-8">
             <FilterPanel
-              {...filters}
+              {...visibleFilters}
               apply={() => {
                 filters.apply();
                 setOpen(false);

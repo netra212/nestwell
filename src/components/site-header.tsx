@@ -1,8 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { House, Search, ArrowUpRight } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { House, ArrowUpRight } from "lucide-react";
 export function SiteHeader() {
   const pathname = usePathname();
   return (
@@ -10,7 +9,7 @@ export function SiteHeader() {
       <header className="border-b bg-white">
         <div className="mx-auto flex min-h-20 max-w-[1600px] flex-wrap items-center gap-x-12 gap-y-4 px-5 py-4 sm:px-8">
           <Link
-            href="/for-sale"
+            href="/"
             aria-label="Nestwell home"
             className="flex items-center gap-2 text-2xl font-bold tracking-tight text-[#362354]"
           >
@@ -46,25 +45,6 @@ export function SiteHeader() {
           </span>
         </div>
       </header>
-      {pathname === "/for-sale" && (
-        <div className="border-b bg-[#f5f1f9]">
-          <div className="mx-auto max-w-[1600px] px-5 py-6 sm:px-8">
-            <div className="relative max-w-3xl">
-              <Search className="absolute top-4 left-5 size-5 text-primary" />
-              {/* // TODO Phase 4: connect natural-language search. */}
-              <Input
-                aria-label="Property search — coming soon"
-                placeholder="Search for properties…"
-                readOnly
-                className="h-14 rounded-xl border-[#d8cce5] bg-white pl-14 text-base shadow-xs placeholder:text-[#81748e]"
-              />
-              <span className="absolute top-[19px] right-4 hidden text-[10px] font-semibold tracking-widest text-muted-foreground sm:block">
-                COMING SOON
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

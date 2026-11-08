@@ -1,9 +1,8 @@
-# Nestwell — Phases 1 & 2
+# Nestwell — Phases 1–3
 
 Next.js 15 App Router, React 19, TypeScript, Tailwind CSS 4, shadcn/ui,
-Prisma 6, PostgreSQL 16 and Zod. Traditional search and listing details are available at `/for-sale`. AI search,
-voice and authentication are reserved for later phases; the home page remains
-intentionally empty.
+Prisma 6, PostgreSQL 16 and Zod. Natural-language and traditional search are available at `/for-sale`, with a
+search hero at `/`. Voice and authentication are reserved for later phases.
 
 ## Run locally
 
@@ -66,8 +65,8 @@ No OpenAI, Mapbox, authentication or Redis service is called in Phase 1.
 
 Visit `/for-sale` to browse listings and `/property/<id>` for a listing’s details.
 The Buy and Rent navigation links open the corresponding results. Sold and
-Agents remain stubs. AI search, voice search, persistent saves and sending
-contact enquiries are intentionally deferred.
+Agents remain stubs. Voice search, persistent saves and sending contact enquiries are deferred.
+Natural-language search is implemented in Phase 3 below.
 
 ### Search API
 
@@ -97,7 +96,7 @@ with `{ error: { code, message, details } }`; sizes greater than 50 are rejected
 Unrecognized query keys are ignored. Database errors use the same envelope.
 
 Example: `/for-sale?city=London&priceMax=600000&bedsMin=3` reproduces the exact
-filters (the seed currently has no London homes meeting those combined bounds).
+filters (the updated seed includes a £575,000 three-bedroom terraced demo home).
 
 `GET /api/locations/autocomplete?q=Lon` returns `{ results: [{ label, city,
 postcode?, latitude, longitude }] }`, up to eight distinct matches derived from
@@ -141,3 +140,111 @@ The read-only integration checks compare API output with PostgreSQL records,
 including price units, combined filters, radius, pagination, validation,
 autocomplete and full details for every seeded property. Stop `pnpm dev` before
 building; both commands write to `.next`.
+
+## Phase 3 — natural-language search
+
+The home hero and results page share `SearchBar`. Try the clickable examples or
+submit your own query (1–300 characters). The microphone remains a Phase 4
+placeholder. Search submits `POST /api/search/parse` then navigates to
+`/for-sale?q=...`; URLs can also be opened directly.
+
+### Provider and fallback
+
+Set `OPENAI_API_KEY` in the server's `.env` to enable OpenAI `gpt-4o-mini`.
+The key is optional, never bundled in client code, and the SDK is instantiated
+only when a request needs it. Structured outputs use a strict Zod wire schema
+with nullable optional fields; the public schema uses optional fields and
+validates bounds. Confidence is added after parsing (0.9 for unambiguous model
+output, 0.65 for ambiguous output). No retries extend the six-second provider
+deadline. Timeouts, refusals, invalid output and provider/network failures use
+the regex fallback. Without a key, the provider is never called.
+
+The fallback recognizes UK cities/postcodes, buy/rent, bedroom/bathroom ranges,
+£/k/m prices, type keywords, known features, soft preferences and distance units.
+It uses 0.4 confidence and asks up to three clarifying questions when intent or
+location is missing. Unresolvable locations produce no results; unrecognized
+text uses a literal title/description keyword search. Hard bounds are never
+silently relaxed. Ordinary features influence ranking; explicitly stated
+must-haves and traditional feature checkbox selections are required.
+
+The parser endpoint returns the parsed fields plus `cached`, `modelUsed` and
+`latencyMs`. Invalid input uses the existing structured error envelope. A
+process-local limiter allows 20 POST requests/minute/IP with HTTP 429 and
+`Retry-After`. **Production should use Redis** for a shared limiter across
+processes/instances, rate-limit direct `q` search requests at the gateway too,
+and configure the trusted ingress to overwrite forwarded IP headers. The demo
+reads `X-Forwarded-For`/`X-Real-IP`, falling back to one unknown-client bucket.
+
+### Cache and logs
+
+Apply `search_query_cache` with the normal Prisma migration command.
+`SearchQuery` now stores an indexed SHA-256 `queryHash`, `cacheExpiresAt` and
+`cached`, plus provider-configuration scope. Adding a key immediately bypasses
+cache entries produced without a key. Queries normalize Unicode (NFKC), case and whitespace. Every parser
+call, including cache hits and simultaneous callers, writes its raw query,
+parsed JSON, model, latency and confidence to an individual audit row. Cache
+hits retain the original absolute expiry, so repeated requests do not extend
+the 24-hour TTL. The hash is indexed rather than unique because audit rows
+intentionally repeat it. Concurrent misses in one process share provider work.
+Invalid/expired cached output is ignored. Cache/audit storage failures do not
+crash parsing; audit failures warn on the server. Configure log retention and
+cache cleanup for a production service.
+
+A forced `parser=keyword` path keeps browsing available if the parse POST fails
+or is rate-limited. The UI shows “Smart search unavailable — using keyword
+search.” and the summary identifies keyword interpretation and confidence.
+Removing the key bypasses cached model entries and uses a fallback entry or a
+fresh fallback parse.
+
+### Filtering, ranking and chips
+
+`GET /api/properties?q=...` merges parsed hard filters with explicit URL
+filters (explicit values win), then scores the complete remaining set **before
+pagination**. Natural-language queries default to `relevance`; traditional
+search still defaults to `newest`. Explicit price/newest ordering remains
+available. Responses include `relevanceScore` (0–100), `matchReasons`, effective
+`parsed`, `originalParsed`, `filterState` and parser/cache metadata.
+
+The deterministic score consists of feature overlap (40), matching preference
+keywords in title/description (30), closeness to a GBP target price (15), and
+recency decreasing over 90 days (15). Missing preference components contribute
+zero. “Cheap” uses the cheapest remaining listing as the price target. Ties
+break by recency then ID. Reasons cite stored features, requested room bounds,
+budget, location or literal description wording. They never invent school
+ratings, school counts, travel times or distances to amenities.
+
+General “house” includes house, terraced, semi-detached and detached enum types.
+An inferred radius uses the centroid of matching seeded locations. Explicit
+location filters replace the inferred location group. `bathsMax` is also
+supported to preserve parsed bathroom ranges.
+
+Chips edit/remove the same filters shown in the panel, with the same 300ms
+URL debounce. `omit=priceMin,priceMax,...` records explicitly cleared inferred
+fields so they remain cleared after reload/back/forward. Feature chips retain
+their ranking role via `featureMode=ranked`; selecting traditional feature
+checkboxes sets `featureMode=required` and keeps the Phase 2 AND-match behavior.
+An explicit API `features` parameter is required/AND-match by default. Soft
+preference chips use `softPreferences` (comma-separated) and can be edited or
+removed. Clearing all filters resets the query as well. Clarifying quick
+replies append an answer to the query and resubmit it.
+
+Two fictional demo listings were refined in the idempotent seed: a £575,000
+three-bedroom London terrace with garden/parking, and an affordable Bristol
+family terrace with the near-schools feature. Totals remain 100 properties,
+5 agents and 2 users. The home page features the six highest-priced ACTIVE
+listings.
+
+### Tests
+
+```sh
+pnpm test                  # Vitest: mocked provider/fallback/cache/timeout, ranking, merging
+pnpm test:integration      # Running server + seeded PostgreSQL required
+pnpm lint
+pnpm build
+```
+
+The integration suite checks all five flagship examples, explicit overrides,
+chip omissions, ranking before pagination, cache hits/absolute expiry/audit
+rows, input validation and POST rate limiting, alongside the Phase 2 checks.
+The expiry test updates only its own uniquely tagged test cache rows. Unit tests
+mock OpenAI, so no live key or billable provider calls are needed for them.

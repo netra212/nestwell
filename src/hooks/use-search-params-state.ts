@@ -52,9 +52,37 @@ export function useSearchParamsState() {
   );
   const update = useCallback(
     (patch: SearchState, immediate = false, resetPage = true) => {
+      const omissions = new Set(
+        draftRef.current.omit?.split(",").filter(Boolean) || [],
+      );
+      const filterKeys = [
+        "listingType",
+        "city",
+        "postcode",
+        "lat",
+        "lng",
+        "radiusKm",
+        "priceMin",
+        "priceMax",
+        "bedsMin",
+        "bedsMax",
+        "bathsMin",
+        "bathsMax",
+        "propertyTypes",
+        "features",
+        "softPreferences",
+      ];
+      if (draftRef.current.q)
+        for (const [key, value] of Object.entries(patch)) {
+          if (filterKeys.includes(key)) {
+            if (value === "") omissions.add(key);
+            else omissions.delete(key);
+          }
+        }
       const next = {
         ...draftRef.current,
         ...patch,
+        ...(draftRef.current.q ? { omit: [...omissions].join(",") } : {}),
         ...(resetPage ? { page: "1" } : {}),
       };
       draftRef.current = next;

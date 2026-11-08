@@ -35,8 +35,13 @@ async function main() {
         const bedrooms = propertyType === "STUDIO" ? 1 : propertyType === "FLAT" ? 1 + n % 3 : propertyType === "MAISONETTE" ? 2 + n % 2 : 2 + n % 5;
         const addressLine = `${10 + n * 2} ${city.roads[n % 4]}`;
         const selected = [...new Set(["central-heating", "near-transport", ...features.filter((_, f) => (index + f) % 4 === 0)])].filter(f => !(["STUDIO", "FLAT"].includes(propertyType) && ["garden", "garage", "driveway", "conservatory"].includes(f)));
-        const price = (c === 0 && n === 19 ? 2500000 : Math.min(2500000, city.base + (bedrooms - 1) * (c === 0 ? 275000 : 85000) + n * 12500)) * 100;
+        // Demonstration homes for the natural-language examples, updated by the same natural keys.
+        if(c === 0 && n === 1) selected.push("garden", "parking", "near-schools");
+        if(c === 4 && n === 1) selected.push("near-schools");
+        const price = (c === 0 && n === 1 ? 575000 : c === 0 && n === 19 ? 2500000 : Math.min(2500000, city.base + (bedrooms - 1) * (c === 0 ? 275000 : 85000) + n * 12500)) * 100;
         const listing = { title: `${bedrooms} bedroom ${propertyType.toLowerCase().replaceAll("_", " ")} on ${city.roads[n % 4]}`, description: `${openings[index % openings.length]} ${details[n % details.length]} ${n % 2 === 0 ? "Nearby transport links make journeys across the city straightforward." : "Parks and everyday amenities are within easy reach."}${n % 3 === 0 ? " Viewing is recommended to appreciate the layout and setting." : ""}`, price, currency: "GBP", priceQualifier: n % 4 === 0 ? "Offers over" : "Guide price", listingType: ListingType.SALE, propertyType, bedrooms, bathrooms: Math.min(4, Math.max(1, Math.ceil(bedrooms / 2))), receptions: bedrooms > 3 ? 2 : 1, addressLine, city: city.name, postcode: city.postcode, country: "UK", latitude: city.latitude + (n % 5 - 2) * 0.002, longitude: city.longitude + (Math.floor(n / 5) - 2) * 0.002, features: selected, agentId: agents[c].id, status: n % 11 === 0 ? PropertyStatus.SOLD : n % 7 === 0 ? PropertyStatus.UNDER_OFFER : PropertyStatus.ACTIVE };
+        if(c === 0 && n === 1) listing.description = "A bright three-bedroom terraced home with a practical layout for family life. A private garden and off-street parking offer useful everyday space. Local schools and transport links are within easy reach.";
+        if(c === 4 && n === 1) listing.description = "This welcoming terraced family home offers three well-proportioned bedrooms and flexible living space. Nearby schools and transport links make everyday journeys straightforward. Independent shops and local parks add to the neighbourhood setting.";
         listingSchema.parse(listing);
         const property = await tx.property.upsert({ where: { addressLine_postcode: { addressLine, postcode: city.postcode } }, create: listing, update: listing });
         properties.push(property);

@@ -114,9 +114,15 @@ export function PropertyCard({
               </span>
             )}
           </div>
-          {view === "list" && (
+          {(view === "list" || !!p.matchReasons?.length) && (
             <p className="mt-4 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
               {p.description}
+            </p>
+          )}
+          {!!p.matchReasons?.length && (
+            <p className="mt-3 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
+              <span className="font-medium text-primary">Matches: </span>
+              {p.matchReasons.slice(0, 4).join(" · ")}
             </p>
           )}
         </div>

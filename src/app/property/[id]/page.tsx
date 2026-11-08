@@ -35,7 +35,11 @@ export default async function PropertyPage({
         </Link>
         <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0">
-            <PropertyGallery images={p.images} title={p.title} />
+            <PropertyGallery
+              images={p.images}
+              title={p.title}
+              address={`${p.addressLine}, ${p.city}, ${p.postcode}`}
+            />
             <div className="mt-8 flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="mb-1 text-xs text-muted-foreground">

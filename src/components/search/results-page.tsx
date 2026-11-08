@@ -63,7 +63,7 @@ export function ResultsPage() {
   });
   const data = results.data;
   const inherited =
-    data?.searchQuery === rawState.q ? { ...data.filterState } : {};
+    data && data.searchQuery === rawState.q ? { ...data.filterState } : {};
   for (const key of rawState.omit?.split(",") || []) delete inherited[key];
   const state = { ...inherited, ...rawState };
   const update = (patch: SearchState, immediate = false, resetPage = true) => {
@@ -190,10 +190,11 @@ export function ResultsPage() {
                 <p
                   role="status"
                   aria-live="polite"
+                  aria-atomic="true"
                   className="text-sm font-semibold"
                 >
                   {data
-                    ? `${data.total.toLocaleString("en-GB")} properties found`
+                    ? `${data.total.toLocaleString("en-GB")} ${data.total === 1 ? "property" : "properties"} found`
                     : results.isError
                       ? "Search unavailable"
                       : "Finding properties…"}
@@ -333,7 +334,7 @@ export function ResultsPage() {
                   }
                 >
                   <ChevronLeft className="size-4" />
-                  Prev
+                  Previous
                 </Button>
                 {pageNumbers.map((n, index) => (
                   <span key={n} className="flex items-center gap-2">

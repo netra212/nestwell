@@ -43,3 +43,8 @@ next-env.d.ts
 !.env.example
 
 .npmrc
+
+/test-results/
+/playwright-report/
+
+/work/

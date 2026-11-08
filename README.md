@@ -1,12 +1,13 @@
-# Nestwell — Phases 1–3
+# Nestwell — Phases 1–4
 
 Next.js 15 App Router, React 19, TypeScript, Tailwind CSS 4, shadcn/ui,
 Prisma 6, PostgreSQL 16 and Zod. Natural-language and traditional search are available at `/for-sale`, with a
-search hero at `/`. Voice and authentication are reserved for later phases.
+search hero at `/`. Browser voice input is available on supported browsers;
+authentication is reserved for a later phase.
 
 ## Run locally
 
-Requires Node.js 22+ and pnpm 11. PostgreSQL must allow creation of Prisma's
+Requires Node.js 24 LTS (24.15+) or 22 LTS (22.22.2+), and pnpm 11. PostgreSQL must allow creation of Prisma's
 shadow database for `migrate dev` (the local Compose user does).
 
 ```sh
@@ -65,7 +66,8 @@ No OpenAI, Mapbox, authentication or Redis service is called in Phase 1.
 
 Visit `/for-sale` to browse listings and `/property/<id>` for a listing’s details.
 The Buy and Rent navigation links open the corresponding results. Sold and
-Agents remain stubs. Voice search, persistent saves and sending contact enquiries are deferred.
+Agents remain stubs. Persistent saves and sending contact enquiries are deferred. Voice search is
+implemented in Phase 4 below.
 Natural-language search is implemented in Phase 3 below.
 
 ### Search API
@@ -144,8 +146,7 @@ building; both commands write to `.next`.
 ## Phase 3 — natural-language search
 
 The home hero and results page share `SearchBar`. Try the clickable examples or
-submit your own query (1–300 characters). The microphone remains a Phase 4
-placeholder. Search submits `POST /api/search/parse` then navigates to
+submit your own query (1–300 characters). The microphone uses browser speech recognition as described below. Search submits `POST /api/search/parse` then navigates to
 `/for-sale?q=...`; URLs can also be opened directly.
 
 ### Provider and fallback
@@ -248,3 +249,68 @@ chip omissions, ranking before pagination, cache hits/absolute expiry/audit
 rows, input validation and POST rate limiting, alongside the Phase 2 checks.
 The expiry test updates only its own uniquely tagged test cache rows. Unit tests
 mock OpenAI, so no live key or billable provider calls are needed for them.
+
+## Voice Search
+
+Select the microphone, allow microphone access if prompted, and speak your
+query. The language is `en-GB`, with interim results and a single utterance.
+Live text and listening/processing status are announced in a polite live region.
+The final transcript fills and focuses the input. **It never submits
+automatically:** review/edit it, then press Enter or Search. Selecting the mic
+again stops capture and waits for final text. Typing or Escape cancels capture
+and ignores late events. Leaving the page releases recognition and listeners.
+
+| Browser       | Support                                                                                                                                |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Chrome / Edge | ✅ Where the browser exposes SpeechRecognition or webkitSpeechRecognition; device, service and policy settings can affect availability |
+| Safari 14.1+  | ✅ Partial; OS/browser speech permissions and service availability vary                                                                |
+| Firefox       | ❌ Browser speech recognition is normally unavailable; type your query instead                                                         |
+
+Feature detection is authoritative. An unsupported browser shows a disabled mic
+with a tooltip available on hover or keyboard focus; ordinary text search stays
+available. The optional MediaRecorder/Whisper backend is not implemented: there
+is no `/api/voice/transcribe` endpoint and no recording option, even if an
+external audio-fallback flag is set. The native path does not require an OpenAI
+key. The first-use example hint can be dismissed; its dismissal is stored in
+`localStorage` when storage is available.
+
+Permission troubleshooting:
+
+1. Use HTTPS or localhost. An insecure origin cannot use microphone recognition.
+2. Open Chrome/Edge's site controls beside the address and allow Microphone.
+   In Safari, check Settings → Websites → Microphone and the device's speech
+   recognition/dictation permissions.
+3. Check the system privacy settings allow the browser to use a connected mic.
+4. Reload after changing permission. On managed devices, administrator policy
+   may block speech services. The inline **How to enable** dialog has these steps.
+5. For no-speech errors, try again and speak clearly; for network errors, check
+   connectivity. You can always continue with typed search.
+
+Keyboard users can activate the mic with Enter/Space. Dialogs trap focus, close
+on Escape and restore focus to their trigger. Focus outlines cover native and
+headless UI controls, and the results count uses an atomic polite live region.
+Property photo alternatives include the title and full address. Primary/accent,
+muted text and input-boundary contrast were checked; reduced motion disables
+animations/transitions and automatic example-placeholder rotation.
+
+To reproduce the checks with a running production server and seeded database:
+
+```sh
+pnpm test                  # Includes mocked speech lifecycle and reduced-motion tests
+pnpm test:integration
+pnpm exec playwright install chromium
+pnpm test:browser          # Speech-event mocks, keyboard/focus, unsupported, errors, mobile
+pnpm audit:a11y            # Lighthouse home + /for-sale; fails below 95
+```
+
+`TEST_BASE_URL` can override the server origin for browser tests and audits.
+`CHROME_PATH` can select an installed Chrome/Chromium executable (for example
+`/usr/bin/chromium` in this environment). Lighthouse JSON reports are written to
+ignored `work/accessibility/`. Browser speech tests simulate recognition events
+and permissions; they do not claim to verify acoustic recognition accuracy or
+an external speech service. Check real microphone recognition on the intended
+Chrome/Edge and Safari devices before release.
+
+Phase 4 production verification: Lighthouse Accessibility **100/100** on both
+home and `/for-sale`, with 47 unit tests, 15 integration checks and eight
+Chromium browser tests passing.

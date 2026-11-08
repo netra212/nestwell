@@ -38,7 +38,7 @@ export function PropertyCard({
         >
           <PropertyImage
             src={p.images[0]?.url || "/property-placeholder.svg"}
-            alt={p.images[0]?.alt || p.title}
+            alt={`${p.title} — ${p.addressLine}, ${p.city}, ${p.postcode}. ${p.images[0]?.alt || "Property photograph"}`}
             fill
             sizes={
               view === "list"

@@ -13,9 +13,11 @@ type GalleryImage = { id: string; url: string; alt: string | null };
 export function PropertyGallery({
   images,
   title,
+  address,
 }: {
   images: GalleryImage[];
   title: string;
+  address: string;
 }) {
   const [index, setIndex] = useState(0);
   const [open, setOpen] = useState(false);
@@ -35,7 +37,7 @@ export function PropertyGallery({
         <PropertyImage
           key={photo.id}
           src={photo.url}
-          alt={photo.alt || title}
+          alt={`${title} — ${address}. ${photo.alt || `Photo ${index + 1}`}`}
           fill
           sizes="(max-width: 1024px) 100vw, 900px"
           className="object-cover"
@@ -63,7 +65,7 @@ export function PropertyGallery({
           >
             <PropertyImage
               src={image.url}
-              alt={image.alt || `${title}, photo ${i + 1}`}
+              alt={`${title} — ${address}. ${image.alt || `Photo ${i + 1}`}`}
               fill
               sizes="112px"
               className="object-cover"
@@ -75,8 +77,14 @@ export function PropertyGallery({
         <DialogContent
           className="w-[95vw] max-w-6xl p-5 sm:max-w-6xl"
           onKeyDown={(e) => {
-            if (e.key === "ArrowLeft") step(-1);
-            if (e.key === "ArrowRight") step(1);
+            if (e.key === "ArrowLeft") {
+              e.preventDefault();
+              step(-1);
+            }
+            if (e.key === "ArrowRight") {
+              e.preventDefault();
+              step(1);
+            }
           }}
         >
           <DialogTitle className="pr-8">{title}</DialogTitle>
@@ -88,7 +96,7 @@ export function PropertyGallery({
             <PropertyImage
               key={photo.id}
               src={photo.url}
-              alt={photo.alt || title}
+              alt={`${title} — ${address}. ${photo.alt || `Photo ${index + 1}`}`}
               fill
               sizes="95vw"
               className="object-contain"

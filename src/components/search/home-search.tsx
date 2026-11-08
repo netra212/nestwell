@@ -6,7 +6,7 @@ export function HomeSearch() {
   return (
     <>
       <SearchBar hero example={example} />
-      <p className="mt-5 text-xs text-[#897a99]">A little inspiration</p>
+      <p className="mt-5 text-xs text-[#6f5d7e]">A little inspiration</p>
       <div className="mt-3 flex flex-wrap gap-2">
         {SEARCH_EXAMPLES.slice(0, 3).map((query) => (
           <button

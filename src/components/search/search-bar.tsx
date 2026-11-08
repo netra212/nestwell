@@ -1,7 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useId } from "react";
 import { usePropertySearch } from "@/hooks/use-property-search";
-import { ArrowRight, LoaderCircle, Mic, Search } from "lucide-react";
+import { ArrowRight, LoaderCircle, Search } from "lucide-react";
+import { useVoiceSearch } from "@/hooks/useVoiceSearch";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { VoiceButton, VoiceFeedback } from "./VoiceButton";
 import { Button } from "@/components/ui/button";
 export const SEARCH_EXAMPLES = [
   "3-bed house in London under £600k with a garden",
@@ -19,18 +22,26 @@ export function SearchBar({
   hero?: boolean;
 }) {
   const { submit, pending, error } = usePropertySearch();
+  const input = useRef<HTMLInputElement>(null);
+  const id = useId();
+  const reducedMotion = useReducedMotion();
   const [value, setValue] = useState(initialQuery);
+  const voice = useVoiceSearch((text) => {
+    setValue(text);
+    input.current?.focus();
+  });
   const [placeholder, setPlaceholder] = useState(0);
   useEffect(() => {
     setValue(initialQuery);
   }, [initialQuery]);
   useEffect(() => {
+    if (reducedMotion) return;
     const interval = setInterval(
       () => setPlaceholder((p) => (p + 1) % SEARCH_EXAMPLES.length),
       4500,
     );
     return () => clearInterval(interval);
-  }, []);
+  }, [reducedMotion]);
   useEffect(() => {
     if (example) {
       setValue(example);
@@ -42,7 +53,14 @@ export function SearchBar({
       aria-label="Natural language property search"
       onSubmit={(e) => {
         e.preventDefault();
+        if (voice.listening || voice.processing) voice.stop(true);
         void submit(value);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && (voice.listening || voice.processing)) {
+          voice.stop(true);
+          input.current?.focus();
+        }
       }}
       className="w-full"
     >
@@ -51,26 +69,25 @@ export function SearchBar({
       >
         <Search className="ml-2 hidden size-5 shrink-0 text-primary sm:block" />
         <input
+          ref={input}
           aria-label="Describe your ideal home"
-          aria-describedby={error ? "search-error" : undefined}
+          aria-describedby={`${id}-voice${error ? ` ${id}-error` : ""}`}
           aria-invalid={!!error}
           type="search"
-          maxLength={300}
+          maxLength={Math.max(300, value.length)}
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            if (voice.listening || voice.processing) voice.stop(true);
+            setValue(e.target.value);
+          }}
           placeholder={SEARCH_EXAMPLES[placeholder]}
           className={`min-w-0 flex-1 bg-transparent px-2 text-sm outline-none sm:text-base ${hero ? "h-12" : "h-10"}`}
         />
-        {/* // TODO Phase 4: connect microphone and voice transcription. */}
-        <button
-          type="button"
-          disabled
-          aria-label="Voice search coming soon"
-          title="Voice search coming soon"
-          className="hidden p-2 text-muted-foreground opacity-40 sm:block"
-        >
-          <Mic className="size-5" />
-        </button>
+        <VoiceButton
+          voice={voice}
+          statusId={`${id}-voice`}
+          disabled={pending}
+        />
         <Button
           type="submit"
           disabled={pending}
@@ -83,15 +100,16 @@ export function SearchBar({
             <LoaderCircle className="size-4 animate-spin" />
           ) : (
             <>
-              <span className="hidden sm:inline">Find my home</span>
+              <span className="hidden sm:inline">Search</span>
               <ArrowRight className="size-4" />
             </>
           )}
         </Button>
       </div>
+      <VoiceFeedback voice={voice} id={`${id}-voice`} />
       {error && (
         <p
-          id="search-error"
+          id={`${id}-error`}
           role="alert"
           className="mt-2 text-sm text-destructive"
         >

@@ -13,7 +13,9 @@
     "postinstall": "prisma generate",
     "test:integration": "node --env-file=.env --test tests/*.integration.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:browser": "playwright test",
+    "audit:a11y": "node scripts/audit-accessibility.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -33,12 +35,16 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@playwright/test": "^1.65.0",
     "@tailwindcss/postcss": "^4",
+    "@testing-library/react": "^16.3.3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.5.29",
+    "jsdom": "^31.0.0",
+    "lighthouse": "^13.6.0",
     "prisma": "^6.19.3",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",

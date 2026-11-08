@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ListingType {
+  SALE
+  RENT
+}
+
+enum PropertyType {
+  HOUSE
+  FLAT
+  BUNGALOW
+  MAISONETTE
+  STUDIO
+  TERRACED
+  SEMI_DETACHED
+  DETACHED
+}
+
+enum PropertyStatus {
+  ACTIVE
+  SOLD
+  UNDER_OFFER
+}
+
+model User {
+  id            String        @id @default(cuid())
+  email         String        @unique
+  name          String?
+  createdAt     DateTime      @default(now())
+  favorites     Favorite[]
+  savedSearches SavedSearch[]
+  enquiries     Enquiry[]
+}
+
+model Agent {
+  id         String     @id @default(cuid())
+  name       String
+  phone      String?
+  email      String?    @unique
+  logoUrl    String?
+  properties Property[]
+}
+
+model Property {
+  id             String          @id @default(cuid())
+  title          String
+  description    String
+  price          Int
+  currency       String          @default("GBP")
+  priceQualifier String?
+  listingType    ListingType
+  propertyType   PropertyType
+  bedrooms       Int
+  bathrooms      Int
+  receptions     Int?
+  addressLine    String
+  city           String
+  postcode       String
+  country        String          @default("UK")
+  latitude       Float
+  longitude      Float
+  features       String[]
+  floorPlanUrl   String?
+  agentId        String
+  agent          Agent           @relation(fields: [agentId], references: [id])
+  status         PropertyStatus  @default(ACTIVE)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  images         PropertyImage[]
+  favorites      Favorite[]
+  enquiries      Enquiry[]
+
+  @@unique([addressLine, postcode])
+  @@index([city, listingType, price])
+  @@index([latitude, longitude])
+}
+
+model PropertyImage {
+  id         String   @id @default(cuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  url        String
+  alt        String?
+  order      Int
+
+  @@unique([propertyId, order])
+}
+
+model Favorite {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, propertyId])
+}
+
+model SavedSearch {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String?
+  rawQuery  String?
+  filters   Json
+  createdAt DateTime @default(now())
+
+  @@unique([userId, name])
+}
+
+model SearchQuery {
+  id         String   @id @default(cuid())
+  rawQuery   String
+  parsed     Json
+  modelUsed  String?
+  latencyMs  Int?
+  confidence Float?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model Enquiry {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  name       String
+  email      String
+  phone      String?
+  message    String
+  createdAt  DateTime @default(now())
+}

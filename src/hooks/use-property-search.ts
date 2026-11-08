@@ -38,6 +38,12 @@ export function usePropertySearch() {
           body: JSON.stringify({ query: q }),
           signal: request.signal,
         });
+        if (response.status === 429)
+          toast({
+            title: "Search limit reached",
+            description:
+              "Please wait a minute. Keyword search is available now.",
+          });
         if (!response.ok) throw new Error("Parser unavailable");
         const result = await response.json();
         keyword = result.modelUsed === "fallback";

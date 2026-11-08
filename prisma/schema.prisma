@@ -80,6 +80,9 @@ model Property {
   @@unique([addressLine, postcode])
   @@index([city, listingType, price])
   @@index([latitude, longitude])
+  @@index([listingType, createdAt, id])
+  @@index([listingType, price, id])
+  @@index([features], type: Gin)
 }
 
 model PropertyImage {

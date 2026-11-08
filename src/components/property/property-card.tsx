@@ -24,6 +24,7 @@ export function PropertyCard({
   const href = `/property/${p.id}`;
   return (
     <article
+      style={{ contentVisibility: "auto", containIntrinsicSize: "auto 560px" }}
       className={cn(
         "group overflow-hidden rounded-2xl border bg-white shadow-xs transition-shadow hover:shadow-md",
         view === "list" && "sm:flex",
@@ -54,6 +55,7 @@ export function PropertyCard({
             }
             className="object-cover transition-transform duration-500 group-hover:scale-105"
             priority={priority}
+            fetchPriority={priority ? "high" : undefined}
           />
         </Link>
         <span className="absolute top-3 left-3 rounded-md bg-white/95 px-2.5 py-1 text-[10px] font-bold tracking-wider text-[#44344f] uppercase">

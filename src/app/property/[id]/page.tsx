@@ -1,3 +1,4 @@
+import { propertyMetadata } from "@/lib/seo";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -17,6 +18,15 @@ import { FavoriteButton } from "@/components/property/FavoriteButton";
 import { PropertyCard } from "@/components/property/property-card";
 import { TrackViewed } from "@/components/property/recently-viewed";
 import { Badge } from "@/components/ui/badge";
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const property = await getProperty((await params).id);
+  if (!property) notFound();
+  return propertyMetadata(property);
+}
 export const dynamic = "force-dynamic";
 export default async function PropertyPage({
   params,

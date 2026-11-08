@@ -1,6 +1,7 @@
 "use client";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import dynamic from "next/dynamic";
+import { useState, useEffect } from "react";
 import {
   ArrowRight,
   ChevronLeft,
@@ -13,32 +14,53 @@ import {
 } from "lucide-react";
 import { useSearchParamsState } from "@/hooks/use-search-params-state";
 import { PropertyCard } from "@/components/property/property-card";
-import { FilterPanel } from "./filter-panel";
+const FilterPanel = dynamic(
+  () => import("./filter-panel").then((m) => m.FilterPanel),
+  {
+    ssr: false,
+    loading: () => (
+      <p role="status" className="p-4 text-sm text-muted-foreground">
+        Loading filters…
+      </p>
+    ),
+  },
+);
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { MapResults, MapViewToggle } from "@/components/map/MapResults";
+import { MapViewToggle } from "@/components/map/MapViewToggle";
+const MapResults = dynamic(
+  () => import("@/components/map/MapResults").then((m) => m.MapResults),
+  { ssr: false },
+);
+const MobileFilters = dynamic(
+  () => import("./MobileFilters").then((m) => m.MobileFilters),
+  { ssr: false },
+);
 import { SaveSearchButton } from "./SaveSearchButton";
 import { SearchBar } from "./search-bar";
-import { FilterChips } from "./filter-chips";
+const FilterChips = dynamic(
+  () => import("./filter-chips").then((m) => m.FilterChips),
+  { ssr: false },
+);
 import { ClarifyingQuestions } from "./clarifying-questions";
 import type { SearchState } from "@/hooks/use-search-params-state";
 import type { PropertyResults } from "@/lib/property-types";
 
-export function ResultsPage({ mapboxToken }: { mapboxToken?: string }) {
+export function ResultsPage({
+  mapboxToken,
+  initial,
+}: {
+  mapboxToken?: string;
+  initial?: { query: string; data: PropertyResults };
+}) {
+  const [desktop, setDesktop] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1024px)");
+    const update = () => setDesktop(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
   const filters = useSearchParamsState();
   const { state: rawState, query, update: rawUpdate, reset } = filters;
   const [open, setOpen] = useState(false);
@@ -49,6 +71,7 @@ export function ResultsPage({ mapboxToken }: { mapboxToken?: string }) {
   const apiQuery = apiParams.toString();
   const results = useQuery<PropertyResults>({
     queryKey: ["properties", apiQuery],
+    initialData: initial?.query === apiQuery ? initial.data : undefined,
     placeholderData: keepPreviousData,
     queryFn: async ({ signal }) => {
       const response = await fetch(`/api/properties?${apiQuery}`, { signal });
@@ -127,7 +150,9 @@ export function ResultsPage({ mapboxToken }: { mapboxToken?: string }) {
         <div className="mx-auto max-w-[1600px] px-5 py-6 sm:px-8">
           <div className="max-w-4xl">
             <SearchBar initialQuery={state.q || ""} />
-            <FilterChips state={state} update={updateChip} />
+            {Object.keys(state).length > 0 && (
+              <FilterChips state={state} update={updateChip} />
+            )}
           </div>
         </div>
       </div>
@@ -177,7 +202,7 @@ export function ResultsPage({ mapboxToken }: { mapboxToken?: string }) {
             aria-label="Property filters"
             className="hidden w-64 shrink-0 rounded-2xl border bg-white p-5 lg:block"
           >
-            <FilterPanel {...visibleFilters} />
+            {desktop && <FilterPanel {...visibleFilters} />}
           </aside>
           <section className="min-w-0 flex-1" aria-label="Property results">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
@@ -218,25 +243,20 @@ export function ResultsPage({ mapboxToken }: { mapboxToken?: string }) {
                 <span className="hidden text-xs text-muted-foreground sm:block">
                   Sort by
                 </span>
-                <Select
+                <select
+                  aria-label="Sort properties"
                   value={sorting}
-                  onValueChange={(value) => {
-                    if (value) update({ sort: String(value) }, true);
-                  }}
+                  onChange={(event) =>
+                    update({ sort: event.target.value }, true)
+                  }
+                  className="h-9 min-w-36 rounded-lg border bg-white px-3 text-sm"
                 >
-                  <SelectTrigger
-                    aria-label="Sort properties"
-                    className="h-9 min-w-36 bg-white"
-                  >
-                    <SelectValue>{sortLabels[sorting] || sorting}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="relevance">Best match</SelectItem>
-                    <SelectItem value="newest">Newest listed</SelectItem>
-                    <SelectItem value="price_asc">Price ↑</SelectItem>
-                    <SelectItem value="price_desc">Price ↓</SelectItem>
-                  </SelectContent>
-                </Select>
+                  {Object.entries(sortLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
                 <div
                   className="flex gap-1 rounded-lg border bg-white p-1"
                   role="group"
@@ -397,28 +417,17 @@ export function ResultsPage({ mapboxToken }: { mapboxToken?: string }) {
           <span className="ml-2 font-semibold text-primary">nestwell.</span>
         </footer>
       </div>
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent
-          side="left"
-          className="w-[min(90vw,360px)] overflow-y-auto"
-        >
-          <SheetHeader>
-            <SheetTitle>Property filters</SheetTitle>
-            <SheetDescription>
-              Find the details that feel like home.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="px-5 pb-8">
-            <FilterPanel
-              {...visibleFilters}
-              apply={() => {
-                filters.apply();
-                setOpen(false);
-              }}
-            />
-          </div>
-        </SheetContent>
-      </Sheet>
+      {open && (
+        <MobileFilters
+          open={open}
+          onOpenChange={setOpen}
+          filters={visibleFilters}
+          apply={() => {
+            filters.apply();
+            setOpen(false);
+          }}
+        />
+      )}
     </main>
   );
 }

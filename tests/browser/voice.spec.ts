@@ -118,9 +118,9 @@ test("keyboard voice input, interim/final review, typing cancellation and persis
     maxAlternatives: 1,
   });
   await page.evaluate(() => window.__voiceTest.result("three bed house"));
-  await expect(page.getByRole("status")).toContainText(
-    "Listening: three bed house",
-  );
+  await expect(
+    page.locator('[role="status"][aria-live="polite"]'),
+  ).toContainText("Listening: three bed house");
   const input = page.getByRole("searchbox", {
     name: "Describe your ideal home",
   });
@@ -170,9 +170,9 @@ test("prefixed API, manual stop and processing until final text", async ({
   await expect(
     page.getByRole("button", { name: "Processing voice input" }),
   ).toBeDisabled();
-  await expect(page.getByRole("status")).toContainText(
-    "Processing voice input",
-  );
+  await expect(
+    page.locator('[role="status"][aria-live="polite"]'),
+  ).toContainText("Processing voice input");
   await page.evaluate(() =>
     window.__voiceTest.result("House in Bristol", true),
   );
@@ -211,9 +211,9 @@ test("permission help dialog traps focus, closes on Escape, and permission retry
   await page.goto("/");
   await page.getByRole("button", { name: "Start voice search" }).click();
   await page.evaluate(() => window.__voiceTest.error("not-allowed"));
-  await expect(page.getByRole("status")).toContainText(
-    "Microphone permission was denied",
-  );
+  await expect(
+    page.locator('[role="status"][aria-live="polite"]'),
+  ).toContainText("Microphone permission was denied");
   await page.getByRole("button", { name: "How to enable" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
@@ -244,7 +244,9 @@ test("network, no-speech and aborted errors remain recoverable", async ({
   ]) {
     await page.getByRole("button", { name: "Start voice search" }).click();
     await page.evaluate((code) => window.__voiceTest.error(code), code);
-    await expect(page.getByRole("status")).toContainText(message);
+    await expect(
+      page.locator('[role="status"][aria-live="polite"]'),
+    ).toContainText(message);
   }
 });
 test("reduced motion stops pulse and automatic placeholder changes", async ({
@@ -280,7 +282,9 @@ test("results load without a query, announce counts, and gallery traps keyboard 
     .getByRole("combobox", { name: "Location", exact: true })
     .fill("London");
   await expect(
-    page.getByRole("status").filter({ hasText: "20 properties found" }),
+    page
+      .locator('[role="status"][aria-live="polite"]')
+      .filter({ hasText: "20 properties found" }),
   ).toBeVisible();
   await page.locator("article a").first().click();
   const gallery = page.getByRole("button", {

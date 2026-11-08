@@ -1,13 +1,15 @@
+import { siteURL, siteDescription } from "@/lib/site";
 import type { Metadata } from "next";
 import { SiteHeader } from "@/components/site-header";
 import { Providers } from "@/components/providers";
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { ToastHost } from "@/components/ToastHost";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Nestwell | Property",
-  description: "Find your next home. UK property platform.",
+  metadataBase: siteURL(),
+  title: { default: "Nestwell | Property", template: "%s | Nestwell" },
+  openGraph: { siteName: "Nestwell", locale: "en_GB" },
+  description: siteDescription,
 };
 
 export default function RootLayout({
@@ -17,14 +19,12 @@ export default function RootLayout({
     <html lang="en-GB">
       <body className="antialiased">
         <Providers>
-          <TooltipProvider>
-            <a href="#main-content" className="sr-only focus:not-sr-only">
-              Skip to content
-            </a>
-            <SiteHeader />
-            {children}
-            <Toaster />
-          </TooltipProvider>
+          <a href="#main-content" className="sr-only focus:not-sr-only">
+            Skip to content
+          </a>
+          <SiteHeader />
+          {children}
+          <ToastHost />
         </Providers>
       </body>
     </html>

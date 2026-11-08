@@ -51,9 +51,11 @@ export const searchSchema = z
     }
   });
 export type ParsedSearch = z.infer<typeof searchSchema>;
-export const queryBodySchema = z.object({
-  query: z.string().trim().min(1).max(300),
-});
+export const queryBodySchema = z
+  .object({
+    query: z.string().trim().min(1).max(300),
+  })
+  .strict();
 // OpenAI strict output schemas require every field; optional values use null on the wire.
 export const modelSearchSchema = z.object({
   intent: z.enum(["buy", "rent", "unknown"]),

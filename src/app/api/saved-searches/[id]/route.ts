@@ -1,3 +1,4 @@
+import { resourceIdSchema } from "@/lib/request-security";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireSession } from "@/lib/session-api";
@@ -9,6 +10,14 @@ export async function DELETE(
   const actor = await requireSession(request);
   if (actor.error) return actor.error;
   const { id } = await params;
+  const validated = resourceIdSchema.safeParse(id);
+  if (!validated.success)
+    return apiError(
+      400,
+      "INVALID_PARAMS",
+      "Invalid identifier.",
+      validated.error.issues,
+    );
   const result = await db.savedSearch.deleteMany({
     where: { id, userId: actor.userId },
   });

@@ -1,0 +1,73 @@
+Pager usage is off.
+BEGIN
+                                                      QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=16.97..17.00 rows=12 width=34) (actual time=0.146..0.147 rows=3 loops=1)
+   Buffers: shared hit=21
+   ->  Sort  (cost=16.97..17.00 rows=12 width=34) (actual time=0.145..0.146 rows=3 loops=1)
+         Sort Key: "createdAt" DESC, id DESC
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=21
+         ->  Seq Scan on "Property"  (cost=0.00..16.75 rows=12 width=34) (actual time=0.014..0.118 rows=3 loops=1)
+               Filter: ((city ~~* 'London'::text) AND (price <= 60000000) AND ("listingType" = 'SALE'::"ListingType"))
+               Rows Removed by Filter: 97
+               Buffers: shared hit=15
+ Planning:
+   Buffers: shared hit=177
+ Planning Time: 1.077 ms
+ Execution Time: 0.170 ms
+(14 rows)
+
+SELECT 100000
+ANALYZE
+                                                               QUERY PLAN
+----------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=11078.96..11079.01 rows=20 width=34) (actual time=37.397..37.401 rows=20 loops=1)
+   Buffers: local read=7168
+   ->  Sort  (cost=11078.96..11328.96 rows=100000 width=34) (actual time=37.396..37.398 rows=20 loops=1)
+         Sort Key: "createdAt" DESC, id DESC
+         Sort Method: top-N heapsort  Memory: 27kB
+         Buffers: local read=7168
+         ->  Seq Scan on property_plan_probe  (cost=0.00..8418.00 rows=100000 width=34) (actual time=0.013..29.233 rows=100000 loops=1)
+               Filter: ("listingType" = 'SALE'::"ListingType")
+               Buffers: local read=7168
+ Planning:
+   Buffers: shared hit=13
+ Planning Time: 0.169 ms
+ Execution Time: 37.422 ms
+(13 rows)
+
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+ANALYZE
+                                                                           QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..4.03 rows=20 width=34) (actual time=0.019..0.038 rows=20 loops=1)
+   Buffers: local hit=20 read=2
+   ->  Index Only Scan Backward using probe_newest on property_plan_probe  (cost=0.29..18691.98 rows=100000 width=34) (actual time=0.018..0.036 rows=20 loops=1)
+         Index Cond: ("listingType" = 'SALE'::"ListingType")
+         Heap Fetches: 20
+         Buffers: local hit=20 read=2
+ Planning:
+   Buffers: shared hit=21, local read=2
+ Planning Time: 0.312 ms
+ Execution Time: 0.054 ms
+(10 rows)
+
+                                                                         QUERY PLAN
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..31.04 rows=20 width=34) (actual time=69.377..69.397 rows=20 loops=1)
+   Buffers: local hit=78839 read=15266
+   ->  Index Scan Backward using probe_newest on property_plan_probe  (cost=0.29..19191.98 rows=12482 width=34) (actual time=69.375..69.393 rows=20 loops=1)
+         Index Cond: ("listingType" = 'SALE'::"ListingType")
+         Filter: ((city ~~* 'London'::text) AND (price <= 60000000))
+         Rows Removed by Filter: 94000
+         Buffers: local hit=78839 read=15266
+ Planning:
+   Buffers: shared hit=8
+ Planning Time: 0.103 ms
+ Execution Time: 69.415 ms
+(11 rows)
+
+ROLLBACK

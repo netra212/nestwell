@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { getServerSession } from "next-auth";
-import { z } from "zod";
+import { demoEmailSchema, safeReturnPath } from "./request-security";
 import { db } from "./db";
 const globals = globalThis as unknown as { nestwellAuthSecret?: string };
 const secret =
@@ -20,10 +20,7 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Demo password", type: "password" },
       },
       async authorize(credentials) {
-        const email = z
-          .email()
-          .max(254)
-          .safeParse(credentials?.email?.trim().toLowerCase());
+        const email = demoEmailSchema.safeParse(credentials?.email);
         if (!email.success) return null;
         const user = await db.user.upsert({
           where: { email: email.data },
@@ -55,11 +52,4 @@ export const authOptions: NextAuthOptions = {
   },
 };
 export const getSession = () => getServerSession(authOptions);
-export function safeCallback(value: string | null | undefined) {
-  return value?.startsWith("/") &&
-    !value.startsWith("//") &&
-    !value.includes("\\") &&
-    !/[\u0000-\u001f]/.test(value)
-    ? value
-    : "/saved";
-}
+export const safeCallback = safeReturnPath;

@@ -1,4 +1,5 @@
 "use client";
+import { toast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { z } from "zod";
@@ -30,6 +31,14 @@ export function SignInForm({ callbackUrl }: { callbackUrl: string }) {
             redirect: false,
             callbackUrl,
           });
+          if (result?.status === 429) {
+            toast({
+              title: "Sign-in limit reached",
+              description: "Please wait a minute before trying again.",
+            });
+            setError("Too many attempts. Please try again in a minute.");
+            return;
+          }
           if (result?.error) {
             setError("We couldn’t sign you in. Please try again.");
             return;

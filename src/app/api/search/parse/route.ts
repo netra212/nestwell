@@ -1,3 +1,4 @@
+import { allowedOrigin } from "@/lib/request-security";
 import { NextResponse } from "next/server";
 import { apiError } from "@/lib/api-error";
 import { parseQuery } from "@/lib/search/parseQuery";
@@ -5,6 +6,8 @@ import { queryBodySchema } from "@/lib/search/schema";
 import { clientIP, takeSearchRequest } from "@/lib/search/rateLimit";
 export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
+  if (!allowedOrigin(request))
+    return apiError(403, "INVALID_ORIGIN", "This request is not allowed.");
   const rate = takeSearchRequest(clientIP(request.headers));
   if (!rate.allowed) {
     const response = apiError(

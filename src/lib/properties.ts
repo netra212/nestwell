@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { Prisma } from "@prisma/client";
 import { db } from "./db";
 import type { PropertyQuery } from "./property-query";
@@ -36,6 +37,7 @@ export async function searchProperties(
     // Geographic filtering happens before counting and paginating.
     const nearby = await db.$queryRaw<{ id: string }[]>`
       SELECT id FROM "Property" WHERE
+      "latitude" BETWEEN ${Math.max(-90, q.lat - q.radiusKm / ((6371.0088 * Math.PI) / 180) - 1e-9)} AND ${Math.min(90, q.lat + q.radiusKm / ((6371.0088 * Math.PI) / 180) + 1e-9)} AND
       6371.0088 * 2 * asin(sqrt(least(1.0, greatest(0.0,
         power(sin(radians("latitude" - ${q.lat}) / 2), 2) +
         cos(radians(${q.lat})) * cos(radians("latitude")) *
@@ -97,9 +99,9 @@ export async function searchProperties(
     pageSize: q.pageSize,
   };
 }
-export function getProperty(id: string) {
+export const getProperty = cache(function getProperty(id: string) {
   return db.property.findUnique({
     where: { id },
     include: { images: { orderBy: { order: "asc" } }, agent: true },
   });
-}
+});

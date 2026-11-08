@@ -226,3 +226,12 @@ it("separates cache scopes when a key is added or removed", async () => {
   await parseQuery("Buy in London scope test");
   expect(mocks.findFirst.mock.calls[1][0].where.providerConfigured).toBe(true);
 });
+
+it("handles non-UK requests without inventing a UK location", async () => {
+  vi.stubEnv("OPENAI_API_KEY", "");
+  const { parsed } = await parseQuery("Buy a flat in Paris under £300k");
+  expect(parsed.location.city).toBeUndefined();
+  expect(parsed.location.text).toContain("paris");
+  expect(parsed.ambiguous).toBe(true);
+  expect(parsed.confidence).toBe(0.4);
+});

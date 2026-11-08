@@ -1,14 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import { LoaderCircle, Mic, Square, X } from "lucide-react";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import dynamic from "next/dynamic";
+import { toast } from "@/hooks/use-toast";
+const VoicePermissionHelp = dynamic(
+  () => import("./VoicePermissionHelp").then((m) => m.VoicePermissionHelp),
+  { ssr: false },
+);
 import type { VoiceSearchState } from "@/hooks/useVoiceSearch";
 export const VOICE_HINT_KEY = "nestwell.voice-hint-dismissed.v1";
 export function VoiceButton({
@@ -152,6 +150,13 @@ export function VoiceFeedback({
   voice: VoiceSearchState;
   id: string;
 }) {
+  useEffect(() => {
+    if (voice.error)
+      toast({
+        title: "Voice search unavailable",
+        description: voice.error.message,
+      });
+  }, [voice.error]);
   const denied =
     voice.error?.code === "not-allowed" ||
     voice.error?.code === "service-not-allowed";
@@ -180,53 +185,7 @@ export function VoiceFeedback({
                 ? `Transcript: ${voice.transcript}. Review or edit your search, then press Enter or the search button.`
                 : ""}
       </div>
-      {denied && (
-        <Dialog>
-          <DialogTrigger
-            render={
-              <button
-                type="button"
-                className="mt-2 rounded text-xs font-medium text-primary underline underline-offset-4"
-              />
-            }
-          >
-            How to enable
-          </DialogTrigger>
-          <DialogContent>
-            <DialogTitle>Enable microphone access</DialogTitle>
-            <DialogDescription>
-              You can always type your search instead.
-            </DialogDescription>
-            <ol className="list-decimal space-y-3 pl-5 text-sm leading-relaxed">
-              <li>Open this site over HTTPS or on localhost.</li>
-              <li>
-                In Chrome or Edge, open the site controls icon next to the
-                address, then set Microphone to Allow. In Safari, check Safari
-                Settings → Websites → Microphone.
-              </li>
-              <li>
-                Check your device’s privacy settings allow the browser to use
-                the microphone. Choose a connected microphone if more than one
-                is available.
-              </li>
-              <li>
-                Reload this page and select the microphone again. If a managed
-                device blocks access, contact your administrator.
-              </li>
-            </ol>
-            <DialogClose
-              render={
-                <button
-                  type="button"
-                  className="mt-2 rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground"
-                />
-              }
-            >
-              Got it
-            </DialogClose>
-          </DialogContent>
-        </Dialog>
-      )}
+      {denied && <VoicePermissionHelp />}
     </div>
   );
 }

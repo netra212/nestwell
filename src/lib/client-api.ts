@@ -1,3 +1,4 @@
+import { toast } from "@/hooks/use-toast";
 export async function clientAPI<T>(
   url: string,
   options?: RequestInit,
@@ -9,6 +10,11 @@ export async function clientAPI<T>(
   } catch {
     throw new Error("The request couldn’t be completed. Please try again.");
   }
+  if (response.status === 429)
+    toast({
+      title: "Request limit reached",
+      description: body.error?.message || "Please try again shortly.",
+    });
   if (!response.ok)
     throw new Error(
       body.error?.message ||

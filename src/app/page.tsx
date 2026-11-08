@@ -1,3 +1,4 @@
+import { homeMetadata } from "@/lib/seo";
 import { RecentlyViewed } from "@/components/property/recently-viewed";
 import Link from "next/link";
 import { ArrowUpRight, Check, Sparkles } from "lucide-react";
@@ -5,6 +6,9 @@ import { db } from "@/lib/db";
 import { HomeSearch } from "@/components/search/home-search";
 import { PropertyCard } from "@/components/property/property-card";
 import { PropertyImage } from "@/components/property/property-image";
+export function generateMetadata() {
+  return homeMetadata();
+}
 export const dynamic = "force-dynamic";
 export default async function Home() {
   const featured = await db.property.findMany({

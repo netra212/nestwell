@@ -1,3 +1,4 @@
+import { allowedOrigin } from "./request-security";
 import { getSession } from "./auth";
 import { apiError } from "./api-error";
 export async function requireSession(request?: Request) {
@@ -7,13 +8,7 @@ export async function requireSession(request?: Request) {
       error: apiError(401, "UNAUTHENTICATED", "Sign in to continue."),
     } as const;
   if (request && !["GET", "HEAD"].includes(request.method)) {
-    const origin = request.headers.get("origin");
-    const allowed = new Set([new URL(request.url).origin]);
-    if (process.env.NEXTAUTH_URL)
-      try {
-        allowed.add(new URL(process.env.NEXTAUTH_URL).origin);
-      } catch {}
-    if (origin && !allowed.has(origin))
+    if (!allowedOrigin(request))
       return {
         error: apiError(403, "INVALID_ORIGIN", "This request is not allowed."),
       } as const;

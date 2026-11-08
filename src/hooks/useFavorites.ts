@@ -78,6 +78,12 @@ export function useFavoriteToggle(
         description: error.message,
       });
     },
+    onSuccess: (_, variables) =>
+      toast({
+        title: variables.save
+          ? "Property saved"
+          : "Property removed from saved homes",
+      }),
     onSettled: () => {
       if (
         cache.isMutating({

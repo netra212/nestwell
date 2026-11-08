@@ -5,6 +5,7 @@ import { ArrowRight, LoaderCircle, Search } from "lucide-react";
 import { useVoiceSearch } from "@/hooks/useVoiceSearch";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { VoiceButton, VoiceFeedback } from "./VoiceButton";
+import { SearchOnboarding } from "./SearchOnboarding";
 import { Button } from "@/components/ui/button";
 export const SEARCH_EXAMPLES = [
   "3-bed house in London under £600k with a garden",
@@ -62,8 +63,9 @@ export function SearchBar({
           input.current?.focus();
         }
       }}
-      className="w-full"
+      className="relative w-full"
     >
+      <SearchOnboarding onDismiss={() => input.current?.focus()} />
       <div
         className={`flex items-center gap-2 rounded-2xl border border-[#d9cce7] bg-white p-2 shadow-sm focus-within:ring-2 focus-within:ring-primary/25 ${hero ? "sm:p-3" : ""}`}
       >

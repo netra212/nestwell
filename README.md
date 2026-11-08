@@ -1,18 +1,69 @@
-# Nestwell — Phases 1–5
+# Nestwell
 
-Next.js 15 App Router, React 19, TypeScript, Tailwind CSS 4, shadcn/ui,
-Prisma 6, PostgreSQL 16 and Zod. Natural-language and traditional search are available at `/for-sale`, with a
-search hero at `/`. Browser voice input is available on supported browsers;
-demo email authentication, saved homes/searches and enquiries are available.
+A Zoopla-inspired UK property demo built with Next.js 15 App Router, React 19,
+TypeScript, Tailwind CSS 4, shadcn/ui, Prisma 6, PostgreSQL 16 and Zod. Uses pnpm.
+The flagship search accepts natural language and browser voice input, ranks
+matching properties and explains matches. This repository covers Phases 1–6.
 
-## Run locally
+## Features
 
-Requires Node.js 24 LTS (24.15+) or 22 LTS (22.22.2+), and pnpm 11. PostgreSQL must allow creation of Prisma's
-shadow database for `migrate dev` (the local Compose user does).
+- 100 fictional properties across London, Manchester, Birmingham, Leeds and
+  Bristol, five agents and two demo users; idempotent upserts and bundled photos.
+- Public grid/list results, filters, autocomplete, pagination, URL state and
+  keyboard-accessible mobile filter drawer. Prices in URLs are **pounds**;
+  prices stored/returned in property records are **integer pence**.
+- OpenAI structured parsing with a six-second deadline, deterministic no-key
+  fallback, 24-hour PostgreSQL cache, per-call logs and ranked match reasons.
+- Browser voice recognition with interim text, final transcript review, permission
+  help and a typed-search fallback. Voice never submits automatically.
+- Demo email sign-in, optimistic favorites, saved-search Run/Delete, authenticated
+  enquiries, similar listings and browser-local recently viewed history.
+- Optional Mapbox clustered map with synchronized selection, desktop split pane
+  and a focus-trapped mobile map with a collapsible bottom list.
+- Loading/error/empty states, branded 404/500 handling, generated metadata,
+  robots/sitemap routes, reduced motion and visible keyboard focus.
+
+## Screenshots
+
+![Home](docs/screenshots/home.png)
+![Results](docs/screenshots/results.png)
+![Property detail](docs/screenshots/detail.png)
+
+Screenshots show fictional demo listings and illustrative, bundled Unsplash photos.
+
+## Architecture
+
+```text
+Browser: Next.js UI + TanStack Query + NextAuth session provider
+  |-- Web Speech API --> reviewed text --> shared search submission
+  |-- optional Mapbox GL JS --> public Mapbox token / clustered GeoJSON
+  |
+  v
+Next.js App Router pages + API routes
+  |-- Zod validation / origin checks / process-local rate limiters
+  |-- NextAuth credentials --> encrypted HttpOnly session cookie
+  |-- NL parser --> OpenAI gpt-4o-mini structured output (optional)
+  |                 \--> regex fallback on missing key, refusal or timeout
+  v
+Prisma singleton --> PostgreSQL
+  properties / agents / users / favorites / saved searches / enquiries
+  SearchQuery: normalized hash cache + per-call audit records
+```
+
+Important source locations: `src/lib/search/`, `src/lib/properties.ts`,
+`src/hooks/useVoiceSearch.ts`, `src/components/search/`, `src/lib/auth.ts`,
+`src/app/api/`, `prisma/schema.prisma`, and `prisma/seed.ts`.
+
+## Local setup
+
+Requires Node.js **24 LTS (24.15+)** or **22 LTS (22.22.2+)**, pnpm 11,
+and PostgreSQL 16. The supplied Compose user can create Prisma's shadow database.
 
 ```sh
+git clone <your-repository-url> nestwell
+cd nestwell
 cp .env.example .env
-# Optional: start the included local PostgreSQL instance.
+# Optional: use the supplied local database.
 docker compose up -d --wait
 pnpm install
 pnpm prisma migrate dev
@@ -20,407 +71,225 @@ pnpm db:seed
 pnpm dev
 ```
 
-Open http://localhost:3000/health to see `ok`, 100 properties, 5 agents and 2
-users. Database failures surface as errors rather than reporting a healthy
-status. This development diagnostics page should be protected or removed
-before a public production release.
+Open http://localhost:3000 and http://localhost:3000/health. The seed produces
+100 properties, five agents and two users; re-running it preserves those counts.
+Demo users are `emma.wilson@example.com` and `oliver.taylor@example.com`.
 
 ```sh
-pnpm lint
 pnpm build
 pnpm start
 ```
 
-`pnpm db:migrate --name your_change` creates/applies development migrations.
-`pnpm db:reset` **deletes all database data**, reapplies migrations and seeds.
-For production migration application, use `pnpm prisma migrate deploy`.
-Environment secrets and local `.env` files are ignored by Git.
+Stop dev before building: both write `.next`. `pnpm db:migrate --name your_change`
+creates a development migration. `pnpm prisma migrate deploy` applies checked-in
+migrations in deployment. **`pnpm prisma migrate reset --force` deletes the target
+database's application data**, reapplies migrations and automatically runs the
+seed. Use it only against a disposable/local database. No migration reset is
+needed for normal starts.
 
-## Demo data
+For an install-from-scratch check, create a separate empty database, point the
+clone's `.env` at it, then run `pnpm install`, `pnpm prisma migrate reset --force`
+and `pnpm dev`. Never point this check at a database whose data you want to keep.
 
-- Twenty fictional listings each in London, Manchester, Birmingham, Leeds and
-  Bristol, with approximate neighbourhood coordinates and illustrative photos.
-- All Phase 1 listings are for sale, with GBP prices stored in **pence**.
-  The schema also supports rental listings for subsequent phases; a rental
-  pricing period should be agreed before adding rental data.
-- Eight property types, 1–6 bedrooms, 1–4 bathrooms, 3–8 fixed Unsplash photo
-  URLs per listing and descriptions of 3–4 sentences. Photos are illustrative
-  and may repeat; bundled copies are used in the Phase 2 UI.
-- Demo users: `emma.wilson@example.com` (3 favorites, 1 saved search) and
-  `oliver.taylor@example.com` (4 favorites, 2 saved searches). These are records,
-  available through the Phase 5 demo sign-in form.
-- Idempotent upserts use agent email, property address + postcode, user email,
-  property image order, user + property favorites, and user + saved-search name.
-  A transaction and advisory lock make failures atomic and concurrent reruns
-  safe. Unrelated records are preserved. Demo records are restored on reruns.
-- Added natural-key unique constraints support seed upserts. Property images,
-  favorites and saved searches cascade on parent deletion; deleting a user
-  retains enquiries with a null user reference.
+### Environment variables
 
-Sold and Agents navigation remain disabled stubs. All requested shadcn base
-components are in `src/components/ui`; toast and tooltip providers are mounted
-in the root layout. `src/lib/db.ts` holds the hot-reload-safe Prisma singleton.
-No OpenAI, Mapbox, authentication or Redis service is called in Phase 1.
+| Variable          | Purpose / default                                                          |
+| ----------------- | -------------------------------------------------------------------------- |
+| `DATABASE_URL`    | Required PostgreSQL connection string; see `.env.example`                  |
+| `OPENAI_API_KEY`  | Optional server-only key; absent/unavailable uses fallback                 |
+| `NEXTAUTH_SECRET` | Stable random secret for deployment; absent uses a per-process demo secret |
+| `NEXTAUTH_URL`    | Actual app origin; local example is `http://localhost:3000`                |
+| `SITE_URL`        | Optional canonical/SEO origin; defaults to `NEXTAUTH_URL`, then localhost  |
+| `MAPBOX_TOKEN`    | Optional public `pk.` browser token; absent or `sk.` disables map          |
+| `REDIS_URL`       | Reserved optional setting; current limiters are in memory                  |
+| `TEST_BASE_URL`   | Optional running-server origin for integration/browser/audit commands      |
+| `CHROME_PATH`     | Optional Chrome/Chromium executable for browser tests and Lighthouse       |
 
-## Phase 2 — results and property details
+Secrets stay in ignored `.env` files. Generate a stable auth secret with
+`openssl rand -base64 32`. Only a public Mapbox token is intentionally passed to
+the browser. `pnpm check:secrets` checks built static bundles for server-only
+secret references.
 
-Visit `/for-sale` to browse listings and `/property/<id>` for a listing’s details.
-The Buy and Rent navigation links open the corresponding results. Sold and
-Agents remain stubs. Favorites, saved searches and enquiries are implemented in Phase 5 below.
-Voice search is described in Phase 4.
-Natural-language search is implemented in Phase 3 below.
+## Natural-language search
 
-### Search API
+`POST /api/search/parse` accepts exactly `{ query: string }`, 1–300 characters.
+It returns the parsed fields plus `cached`, `modelUsed` and `latencyMs`.
+The schema covers intent, location/radius, GBP budget, bedrooms/bathrooms,
+property types, features, soft/must-have/nice-to-have preferences, ambiguity,
+up to three clarifying questions and confidence.
 
-`GET /api/properties` returns `{ results, total, page, pageSize }`. Each listing
-includes its agent’s name/logo and its first ordered image. `GET
-/api/properties/<id>` returns the full listing, all ordered images, full agent
-and matching `similarProperties`. Missing properties return HTTP 404.
+The system prompt interprets UK language: £600k means 600000 **pounds**, 2-bed
+means a minimum of two bedrooms, under means a maximum budget, transport/schools
+map to stored features, and quiet/modern/family-friendly guide soft ranking.
+It prohibits invented locations, school ratings/counts and travel times.
+OpenAI's strict wire schema uses nullable optional fields, then public Zod
+validation removes nulls and checks bounds. Confidence is 0.9 for clear model
+output, 0.65 for ambiguous model output, or 0.4 for the regex fallback.
 
-Supported query parameters:
+The fallback extracts digit-based room bounds, prices, known features/types,
+UK cities/postcodes and distances. Unresolved/non-UK locations produce no
+invented UK match; garbage text uses a literal title/description keyword search.
+Missing intent/location triggers clarifying questions. Hard bounds are retained.
 
-| Parameter                        | Meaning                                                                                           |
-| -------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `listingType`                    | `SALE` (default) or `RENT`                                                                        |
-| `city`, `postcode`               | Case-insensitive exact city and postcode prefix                                                   |
-| `lat`, `lng`, `radiusKm`         | Latitude/longitude centre and great-circle radius in kilometres; radius requires both coordinates |
-| `priceMin`, `priceMax`           | **Pounds**, converted to pence for database filtering                                             |
-| `bedsMin`, `bedsMax`, `bathsMin` | Inclusive room bounds                                                                             |
-| `propertyTypes`                  | Comma-separated schema enum values; any selected type matches                                     |
-| `features`                       | Comma-separated feature names; **all** selected features must match                               |
-| `sort`                           | `newest` (default), `price_asc`, `price_desc`, `relevance` (currently newest)                     |
-| `page`, `pageSize`               | One-based page, default size 20, maximum size 50                                                  |
+Normalized Unicode/case/whitespace queries use SHA-256 `queryHash`. Validated
+cache entries expire after a fixed 24 hours; hits do not extend expiry. Separate
+audit rows log every call. Provider-configuration scope prevents adding/removing
+a key from reusing the wrong parser's cache. In-process misses share provider
+work. Cache/log failures do not crash parsing. Set retention/cleanup policies
+before a real deployment.
 
-Prices in API **responses** remain in pence. Results include all property
-statuses, which are shown on cards. All sort orders include an ID tie-breaker
-for stable pagination. Invalid or repeated query parameters return HTTP 400
-with `{ error: { code, message, details } }`; sizes greater than 50 are rejected.
-Unrecognized query keys are ignored. Database errors use the same envelope.
+Cost controls: at most one provider attempt, no SDK retries, a six-second timeout,
+300-character inputs, caching, and 20 parse POST requests/minute/IP. An unavailable
+or rate-limited parse falls back to keyword browsing with a toast. Limit direct
+`GET /api/properties?q=...` requests at the production gateway as well.
 
-Example: `/for-sale?city=London&priceMax=600000&bedsMin=3` reproduces the exact
-filters (the updated seed includes a £575,000 three-bedroom terraced demo home).
+### Filtering and ranking
 
-`GET /api/locations/autocomplete?q=Lon` returns `{ results: [{ label, city,
-postcode?, latitude, longitude }] }`, up to eight distinct matches derived from
-property data. Coordinates are the average of matching stored property
-coordinates. Picking a suggestion enables the radius slider (default five
-miles, converted to kilometres in the URL). City/postcode and radius predicates
-are combined. Typing a location clears its old coordinates; city/postcode
-filtering still works without choosing a suggestion.
+`GET /api/properties` supports `listingType` (SALE default), city, postcode prefix,
+`lat`/`lng`/`radiusKm`, priceMin/priceMax, bedsMin/bedsMax, bathsMin/bathsMax,
+comma-separated propertyTypes/features, sort, page and pageSize (20 default,
+maximum 50). Explicit filter values override inferred ones. Traditional feature
+checkboxes AND-match; text features guide ranking unless marked must-have.
 
-The filter panel updates the URL after 300ms; Apply flushes pending changes.
-Sorting/pagination update immediately, filter changes reset to page one, and
-browser back/forward restores controls and results. `view=grid|list` is stored
-in the URL for presentation. TanStack Query retains and dims previous results
-while loading a new query. An invalid URL shows a recoverable error state;
-empty searches offer Reset. Reset restores default SALE results.
+Hard location, price, rooms and type constraints apply first. Remaining properties
+score 0–100: feature overlap 40, listing-word preference matches 30, target-price
+closeness 15, recency over 90 days 15. Relevance sorting ranks the full candidate
+set before pagination. Stable tie-breakers prevent paging drift. “Cheap” targets
+the lowest candidate price. Reasons cite actual features or listing wording.
 
-Contact enquiries now validate and store records through the authenticated
-Phase 5 endpoint. Save buttons update the signed-in user’s favorites.
+Natural-language queries default to relevance; traditional search defaults to
+newest. Explicit price/newest sort orders remain available. URLs retain all
+filters, sort/page/view and the raw query. `omit=...` records cleared inferred
+chips; `featureMode=ranked|required` preserves feature intent across reloads.
+Apply flushes the 300ms debounce; Reset restores default SALE results.
 
-### Images
+The following examples are covered by integration tests:
 
-Eight illustrative Unsplash photos from the seed are bundled in
-`public/images/properties` for dependable local browsing. Their original photo
-IDs and source URLs are retained in `prisma/seed.ts`; `property-images.ts` maps
-those known URLs to bundled copies. Agent placeholders are bundled SVG logos.
-`next/image` handles responsive property images with a local fallback.
-
-### Verification
-
-With a running development or production server and a seeded `.env` database:
-
-```sh
-pnpm test:integration
-# Override the server origin when needed:
-TEST_BASE_URL=http://localhost:3001 pnpm test:integration
-pnpm lint
-pnpm build
-```
-
-The read-only integration checks compare API output with PostgreSQL records,
-including price units, combined filters, radius, pagination, validation,
-autocomplete and full details for every seeded property. Stop `pnpm dev` before
-building; both commands write to `.next`.
-
-## Phase 3 — natural-language search
-
-The home hero and results page share `SearchBar`. Try the clickable examples or
-submit your own query (1–300 characters). The microphone uses browser speech recognition as described below. Search submits `POST /api/search/parse` then navigates to
-`/for-sale?q=...`; URLs can also be opened directly.
-
-### Provider and fallback
-
-Set `OPENAI_API_KEY` in the server's `.env` to enable OpenAI `gpt-4o-mini`.
-The key is optional, never bundled in client code, and the SDK is instantiated
-only when a request needs it. Structured outputs use a strict Zod wire schema
-with nullable optional fields; the public schema uses optional fields and
-validates bounds. Confidence is added after parsing (0.9 for unambiguous model
-output, 0.65 for ambiguous output). No retries extend the six-second provider
-deadline. Timeouts, refusals, invalid output and provider/network failures use
-the regex fallback. Without a key, the provider is never called.
-
-The fallback recognizes UK cities/postcodes, buy/rent, bedroom/bathroom ranges,
-£/k/m prices, type keywords, known features, soft preferences and distance units.
-It uses 0.4 confidence and asks up to three clarifying questions when intent or
-location is missing. Unresolvable locations produce no results; unrecognized
-text uses a literal title/description keyword search. Hard bounds are never
-silently relaxed. Ordinary features influence ranking; explicitly stated
-must-haves and traditional feature checkbox selections are required.
-
-The parser endpoint returns the parsed fields plus `cached`, `modelUsed` and
-`latencyMs`. Invalid input uses the existing structured error envelope. A
-process-local limiter allows 20 POST requests/minute/IP with HTTP 429 and
-`Retry-After`. **Production should use Redis** for a shared limiter across
-processes/instances, rate-limit direct `q` search requests at the gateway too,
-and configure the trusted ingress to overwrite forwarded IP headers. The demo
-reads `X-Forwarded-For`/`X-Real-IP`, falling back to one unknown-client bucket.
-
-### Cache and logs
-
-Apply `search_query_cache` with the normal Prisma migration command.
-`SearchQuery` now stores an indexed SHA-256 `queryHash`, `cacheExpiresAt` and
-`cached`, plus provider-configuration scope. Adding a key immediately bypasses
-cache entries produced without a key. Queries normalize Unicode (NFKC), case and whitespace. Every parser
-call, including cache hits and simultaneous callers, writes its raw query,
-parsed JSON, model, latency and confidence to an individual audit row. Cache
-hits retain the original absolute expiry, so repeated requests do not extend
-the 24-hour TTL. The hash is indexed rather than unique because audit rows
-intentionally repeat it. Concurrent misses in one process share provider work.
-Invalid/expired cached output is ignored. Cache/audit storage failures do not
-crash parsing; audit failures warn on the server. Configure log retention and
-cache cleanup for a production service.
-
-A forced `parser=keyword` path keeps browsing available if the parse POST fails
-or is rate-limited. The UI shows “Smart search unavailable — using keyword
-search.” and the summary identifies keyword interpretation and confidence.
-Removing the key bypasses cached model entries and uses a fallback entry or a
-fresh fallback parse.
-
-### Filtering, ranking and chips
-
-`GET /api/properties?q=...` merges parsed hard filters with explicit URL
-filters (explicit values win), then scores the complete remaining set **before
-pagination**. Natural-language queries default to `relevance`; traditional
-search still defaults to `newest`. Explicit price/newest ordering remains
-available. Responses include `relevanceScore` (0–100), `matchReasons`, effective
-`parsed`, `originalParsed`, `filterState` and parser/cache metadata.
-
-The deterministic score consists of feature overlap (40), matching preference
-keywords in title/description (30), closeness to a GBP target price (15), and
-recency decreasing over 90 days (15). Missing preference components contribute
-zero. “Cheap” uses the cheapest remaining listing as the price target. Ties
-break by recency then ID. Reasons cite stored features, requested room bounds,
-budget, location or literal description wording. They never invent school
-ratings, school counts, travel times or distances to amenities.
-
-General “house” includes house, terraced, semi-detached and detached enum types.
-An inferred radius uses the centroid of matching seeded locations. Explicit
-location filters replace the inferred location group. `bathsMax` is also
-supported to preserve parsed bathroom ranges.
-
-Chips edit/remove the same filters shown in the panel, with the same 300ms
-URL debounce. `omit=priceMin,priceMax,...` records explicitly cleared inferred
-fields so they remain cleared after reload/back/forward. Feature chips retain
-their ranking role via `featureMode=ranked`; selecting traditional feature
-checkboxes sets `featureMode=required` and keeps the Phase 2 AND-match behavior.
-An explicit API `features` parameter is required/AND-match by default. Soft
-preference chips use `softPreferences` (comma-separated) and can be edited or
-removed. Clearing all filters resets the query as well. Clarifying quick
-replies append an answer to the query and resubmit it.
-
-Two fictional demo listings were refined in the idempotent seed: a £575,000
-three-bedroom London terrace with garden/parking, and an affordable Bristol
-family terrace with the near-schools feature. Totals remain 100 properties,
-5 agents and 2 users. The home page features the six highest-priced ACTIVE
-listings.
-
-### Tests
-
-```sh
-pnpm test                  # Vitest: mocked provider/fallback/cache/timeout, ranking, merging
-pnpm test:integration      # Running server + seeded PostgreSQL required
-pnpm lint
-pnpm build
-```
-
-The integration suite checks all five flagship examples, explicit overrides,
-chip omissions, ranking before pagination, cache hits/absolute expiry/audit
-rows, input validation and POST rate limiting, alongside the Phase 2 checks.
-The expiry test updates only its own uniquely tagged test cache rows. Unit tests
-mock OpenAI, so no live key or billable provider calls are needed for them.
+1. `3-bed house in London under £600k with a garden and parking`
+2. `pet-friendly flat with balcony near a train station in Manchester`
+3. `family home near good schools in Bristol under £450k`
+4. `cheap studio` — clarification and affordable studios
+5. `asdfgh` — graceful empty state
 
 ## Voice Search
 
-Select the microphone, allow microphone access if prompted, and speak your
-query. The language is `en-GB`, with interim results and a single utterance.
-Live text and listening/processing status are announced in a polite live region.
-The final transcript fills and focuses the input. **It never submits
-automatically:** review/edit it, then press Enter or Search. Selecting the mic
-again stops capture and waits for final text. Typing or Escape cancels capture
-and ignores late events. Leaving the page releases recognition and listeners.
+Select the microphone, allow access and speak. The API uses `en-GB`, interim
+results, `continuous=false`, `maxAlternatives=1`. Final text fills/focuses the
+input. **Review/edit before Enter or Search**; voice never auto-submits. Typing
+or Escape cancels capture and ignores late events. Unmount releases listeners
+and recognition. Reduced motion disables pulse, transitions and placeholder
+rotation. The first-use voice hint and general search tip persist dismissal in
+localStorage when available.
 
-| Browser       | Support                                                                                                                                |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Chrome / Edge | ✅ Where the browser exposes SpeechRecognition or webkitSpeechRecognition; device, service and policy settings can affect availability |
-| Safari 14.1+  | ✅ Partial; OS/browser speech permissions and service availability vary                                                                |
-| Firefox       | ❌ Browser speech recognition is normally unavailable; type your query instead                                                         |
+| Browser       | Support                                                                                                     |
+| ------------- | ----------------------------------------------------------------------------------------------------------- |
+| Chrome / Edge | ✅ Where SpeechRecognition or webkitSpeechRecognition is exposed; policies/services may affect availability |
+| Safari 14.1+  | ✅ Partial; device/browser speech and microphone permissions vary                                           |
+| Firefox       | ❌ Normally unavailable; disabled mic with keyboard/hover tooltip and working typed search                  |
 
-Feature detection is authoritative. An unsupported browser shows a disabled mic
-with a tooltip available on hover or keyboard focus; ordinary text search stays
-available. The optional MediaRecorder/Whisper backend is not implemented: there
-is no `/api/voice/transcribe` endpoint and no recording option, even if an
-external audio-fallback flag is set. The native path does not require an OpenAI
-key. The first-use example hint can be dismissed; its dismissal is stored in
-`localStorage` when storage is available.
+Use HTTPS or localhost. For denied permission, open the address-bar site controls
+and allow Microphone; in Safari, check Settings → Websites → Microphone and OS
+speech/dictation permissions. Check the browser's system privacy permissions,
+connected mic and network, then reload. Managed devices may require administrator
+help. The inline **How to enable** dialog includes these steps. Mic errors are
+announced and toasted. Acoustic recognition/service availability require real-device
+checks; automated tests simulate speech events. The optional backend recording/
+Whisper fallback is **not implemented**, so no recording option is exposed.
 
-Permission troubleshooting:
+## Accounts, saves and enquiries
 
-1. Use HTTPS or localhost. An insecure origin cannot use microphone recognition.
-2. Open Chrome/Edge's site controls beside the address and allow Microphone.
-   In Safari, check Settings → Websites → Microphone and the device's speech
-   recognition/dictation permissions.
-3. Check the system privacy settings allow the browser to use a connected mic.
-4. Reload after changing permission. On managed devices, administrator policy
-   may block speech services. The inline **How to enable** dialog has these steps.
-5. For no-speech errors, try again and speak clearly; for network errors, check
-   connectivity. You can always continue with typed search.
+Demo credentials accept any valid email and any/omitted demo password. Email
+identity is **unverified**; replace this provider before using real accounts.
+JWTs live only in HttpOnly, SameSite=Lax browser-session cookies, with a one-day
+JWT expiry. A missing auth secret uses a per-process random value: restarts log
+users out and multiple instances cannot share those sessions.
 
-Keyboard users can activate the mic with Enter/Space. Dialogs trap focus, close
-on Escape and restore focus to their trigger. Focus outlines cover native and
-headless UI controls, and the results count uses an atomic polite live region.
-Property photo alternatives include the title and full address. Primary/accent,
-muted text and input-boundary contrast were checked; reduced motion disables
-animations/transitions and automatic example-placeholder rotation.
+All favorite/saved-search reads and writes, and enquiry writes, require a
+session. Ownership comes from the server session; body `userId` is rejected.
+Favorites use per-user TanStack Query state with optimistic updates and targeted
+rollback. `/saved` has favorite cards and saved-search Run/Delete actions.
 
-To reproduce the checks with a running production server and seeded database:
+| API                                     | Behavior                                                               |
+| --------------------------------------- | ---------------------------------------------------------------------- |
+| `GET/POST /api/favorites`               | Own collection / idempotently save `{ propertyId }`                    |
+| `DELETE /api/favorites/:propertyId`     | Remove only own favorite                                               |
+| `GET/POST /api/saved-searches`          | Own rows / `{ name?, rawQuery?, filters }`                             |
+| `DELETE /api/saved-searches/:id`        | Own row only; foreign IDs return 404                                   |
+| `POST /api/enquiries`                   | `{ propertyId, name, email, phone?, message, website? }`               |
+| `GET /api/properties/:id`               | Full listing, images, agent, similarProperties                         |
+| `GET /api/properties/:id/similar`       | Same city/type/listing type, ±30% price, ±1 bed, exclude self, limit 6 |
+| `GET /api/locations/autocomplete?q=...` | Up to eight DB-derived city/postcode matches                           |
+
+Provided saved-search names are unique per user; unnamed saves are independent.
+Replay preserves URL overrides/omissions and converts legacy seed price/room
+aliases. Enquiries validate before storage; success confirms platform receipt,
+not an agent email notification. A honeypot simulates success without storing bot
+submissions. Enquiry attempts are limited to one per ten seconds/IP. Auth POSTs
+are limited to 20/minute/IP; auth GETs to 120/minute/IP. NextAuth handles auth
+CSRF; other mutation routes reject supplied cross-origin Origin headers.
+
+Limiters are process-local. Multi-instance production needs a shared limiter
+such as Redis and trusted ingress that overwrites forwarded IP/host headers.
+The app does not yet use `REDIS_URL`.
+
+## Map and recently viewed
+
+Configure a public `MAPBOX_TOKEN=pk.…` and restart. Secret tokens are never sent
+to the client. Map fetches every filtered page, clusters GeoJSON points at low
+zoom, synchronizes pin/card selection and links popups to details. Desktop uses
+a split pane; mobile uses a full-screen dialog/bottom list. Connection/token/
+WebGL errors offer Grid/List alternatives. Without a token Map stays disabled.
+Live Mapbox rendering requires a valid token; SDK behavior is covered with mocks.
+
+Details record the last eight unique IDs in `nestwell.recently-viewed.v1`.
+The home strip is browser-local, independent of account favorites, and handles
+malformed/unavailable storage. Missing/empty results have browse/reset actions.
+
+## Tests and QA
 
 ```sh
-pnpm test                  # Includes mocked speech lifecycle and reduced-motion tests
-pnpm test:integration
+pnpm lint
+pnpm test                  # Vitest, provider and map SDK mocked
+pnpm test:integration      # Running server + disposable seeded database
 pnpm exec playwright install chromium
-pnpm test:browser          # Speech-event mocks, keyboard/focus, unsupported, errors, mobile
-pnpm audit:a11y            # Lighthouse home + /for-sale; fails below 95
-```
-
-`TEST_BASE_URL` can override the server origin for browser tests and audits.
-`CHROME_PATH` can select an installed Chrome/Chromium executable (for example
-`/usr/bin/chromium` in this environment). Lighthouse JSON reports are written to
-ignored `work/accessibility/`. Browser speech tests simulate recognition events
-and permissions; they do not claim to verify acoustic recognition accuracy or
-an external speech service. Check real microphone recognition on the intended
-Chrome/Edge and Safari devices before release.
-
-Phase 4 production verification: Lighthouse Accessibility **100/100** on both
-home and `/for-sale`, with 47 unit tests, 15 integration checks and eight
-Chromium browser tests passing.
-
-## Phase 5 — accounts, saved collections and maps
-
-### Demo sign-in
-
-`/sign-in` contains one email field. The NextAuth credentials provider accepts
-any valid email and any/omitted demo password, finds or creates that user, and
-issues an encrypted JWT in an HttpOnly, SameSite=Lax **browser-session cookie**.
-No token is stored in localStorage and no session database adapter is needed.
-The JWT also has a one-day expiry. Sign out clears the cookie. Browsing,
-traditional/AI search, property details and similar listings remain public.
-
-Use `emma.wilson@example.com` or `oliver.taylor@example.com` for the seeded
-accounts. Email identity is deliberately unverified for this demo; replace the
-credentials provider with verified authentication before using real accounts.
-Set `NEXTAUTH_URL` to the app's actual origin and `NEXTAUTH_SECRET` to a stable
-random secret for deployment. If the secret is absent, the single-process demo
-uses an ephemeral random secret; restarting logs users out and separate
-instances cannot share those sessions.
-
-The header shows Saved and Sign in/Sign out. `/saved` requires sign-in. Favorites
-and saved searches are scoped to the session's server-side user ID; client
-`userId` fields are rejected. Mutation endpoints additionally reject a supplied
-cross-origin Origin header. Keep forwarded host/origin configuration correct
-behind a reverse proxy.
-
-### User APIs
-
-| Endpoint                            | Behavior                                                                        |
-| ----------------------------------- | ------------------------------------------------------------------------------- |
-| `GET /api/favorites`                | Own `{ results, propertyIds }`, with agent and first image                      |
-| `POST /api/favorites`               | `{ propertyId }`; idempotently save a property                                  |
-| `DELETE /api/favorites/:propertyId` | Remove only the session user's favorite; idempotent                             |
-| `GET /api/saved-searches`           | Own `{ results }`                                                               |
-| `POST /api/saved-searches`          | `{ name?, rawQuery?, filters }`; validated URL filters, optional arrays/numbers |
-| `DELETE /api/saved-searches/:id`    | Delete an owned search; other users' IDs return 404                             |
-| `POST /api/enquiries`               | `{ propertyId, name, email, phone?, message, website? }`                        |
-
-All listed reads/writes require a session and unauthenticated calls return 401.
-Favorite hearts on cards and details update optimistically through a shared
-TanStack Query cache keyed by user ID; failures roll back the affected property
-without erasing other concurrent changes. `/saved` reuses `PropertyCard` and
-provides saved-search Run/Delete actions. Search replay retains query, sort,
-view, explicit overrides and chip omissions. Legacy seeded pence-based
-`maxPrice`/`minPrice` and room aliases are converted to URL pounds/room keys.
-Provided saved-search names are unique per user (duplicates return 409);
-unnamed searches may be saved independently.
-
-The agent form pre-fills available account details, validates with Zod, and
-stores enquiries in PostgreSQL. Submission confirms receipt; agent email
-notifications are outside this phase. The hidden `website` honeypot returns a
-success response without storing a bot submission. Authenticated attempts are
-limited to one per ten seconds/IP with HTTP 429 and Retry-After. This limiter is
-process-local; use a shared store such as Redis for multiple instances, and
-configure ingress to overwrite forwarded IP headers.
-
-### Map view
-
-Set **`MAPBOX_TOKEN=pk.…`** to a public, browser-scoped Mapbox token, then restart
-the server. `/for-sale` reads it at request time; secret `sk.` tokens are never
-passed to the client. Missing/non-public tokens disable Map with a keyboard-
-and hover-accessible tooltip. The Mapbox SDK loads only when the view is used.
-Connection/token/WebGL failures show a useful error while Grid/List remain
-available.
-
-Map fetches all matching pages (50 at a time), plots longitude/latitude GeoJSON
-with stable property IDs, and clusters points at low zoom. Cluster clicks zoom
-in; pin and “Show on map” selections synchronize highlighting and a safe detail
-link popup. List selections zoom to an individual pin. Desktop uses a split
-map/list pane; mobile uses a focus-trapped full-screen dialog with a collapsible
-bottom list, Close map action and Escape support. Map movement respects reduced
-motion. Mapbox's live service requires a configured working token; SDK mocks
-exercise clustering, selection, popup links, WebGL fallback and cleanup without
-external credentials.
-
-### Similar and recently viewed homes
-
-`GET /api/properties/:id/similar` returns `{ results }`: same city, type and
-listing type, price within ±30%, bedrooms within ±1, excluding self, at most
-six. Full property responses and the detail page use the same logic. When no
-matches exist, the section offers a city/type browsing link.
-
-The home page's Recently viewed strip reads the last eight unique property IDs
-from `nestwell.recently-viewed.v1` in localStorage, most recent first. Details
-record a view on mount. Malformed or unavailable storage is handled quietly;
-missing properties are omitted. History is browser-local and independent of
-account favorites.
-
-### Phase 5 verification
-
-```sh
-pnpm test
-pnpm test:integration
-# With a running server and an installed Chromium:
 CHROME_PATH=/usr/bin/chromium pnpm test:browser
 pnpm build
+pnpm check:secrets
+# Start pnpm start in another terminal, then run sequential mobile audits:
+CHROME_PATH=/usr/bin/chromium pnpm audit:quality
 ```
 
-The browser suite uses two seeded accounts for ownership and isolated temporary
-users for sign-in, favorite rollback, saved-search replay/deletion and enquiry
-submission/spam checks. Temporary test-user records are cleaned up. Unit tests
-cover map SDK interactions, all-page map fetching, token handling, recent IDs,
-saved URL normalization and enquiry validation/rate limiting. Live Mapbox tile
-rendering is a separate check when a valid token is available.
+Run integration/browser tests against an isolated database: cache-expiry tests
+update uniquely tagged test cache rows; account tests create/remove temporary
+users and briefly modify/restore seeded favorites. Two isolated seeded-user
+sessions verify ownership. Tests also cover all five NL examples, fallback/
+timeout/cache paths, validators, filter combinations, rate rejection, voice
+lifecycle, URL history, focus traps, optimistic rollback and persisted saves.
 
-Phase 5 production verification passed: **58 unit tests**, **15 API integration
-checks**, **13 Chromium browser tests**, and `pnpm build`. Lighthouse
-Accessibility remains **100/100** on home and results. Two-account ownership and
-optimistic rollback were exercised against PostgreSQL; Mapbox SDK behavior was
-mocked because no live public token is configured.
+`audit:quality` audits home/results/detail sequentially with Lighthouse mobile
+simulated throttling and enforces Performance 85, Accessibility 95, Best Practices
+90 and SEO 90. Reports go to ignored `work/quality/`. Accessibility-only checks
+remain available as `pnpm audit:a11y`. Scores measure this build/environment,
+not universal real-device performance or a complete accessibility certification.
+
+Database measurements and index rationale are in [docs/QUERY_PLANS.md](docs/QUERY_PLANS.md).
+Final verified results and manual-check limits are in [docs/QA.md](docs/QA.md).
+
+## Known limitations and next steps
+
+- Fictional inventory and illustrative photos, not a licensed live feed. The seed
+  contains sale listings only. Agree a rental price period before importing rents.
+- Demo email identity; no verified accounts, agent portal or notification delivery.
+- In-memory rate limits and in-process provider deduplication; no shared Redis yet.
+- Regex fallback is intentionally limited and digit-based; confidence is heuristic.
+- Rank-in-memory is appropriate for the demo dataset. Large feeds need indexed
+  retrieval/geocoding, query-log retention and measured semantic-search evaluation.
+- Coordinates/centroids approximate seeded neighbourhoods; no school quality,
+  journey-time or precise geocoding claims.
+- Native speech depends on browser/service/permissions. Live OpenAI, microphone
+  accuracy and Mapbox tiles require configured credentials and real-device checks.
+- LocalStorage history is browser-local. Health is a development diagnostics route
+  and should be restricted/removed for public deployment.
+
+See [ROADMAP.md](ROADMAP.md) for feed integrations, verified auth/agent tools,
+semantic search, mortgage estimates, alerts, geocoding, i18n and dark mode.

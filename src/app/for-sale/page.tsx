@@ -1,14 +1,44 @@
+import { parsePropertyQuery } from "@/lib/property-query";
+import { searchProperties } from "@/lib/properties";
+import type { PropertyResults } from "@/lib/property-types";
 import { publicMapboxToken } from "@/lib/map-config";
 import { Suspense } from "react";
-import type { Metadata } from "next";
+import { resultsMetadata } from "@/lib/seo";
 import { ResultsPage, ResultsSkeleton } from "@/components/search/results-page";
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = {
-  title: "Properties for sale & rent | Nestwell",
-  description:
-    "Find a home with our UK property listings. Filter by location, price, bedrooms and the features that matter to you.",
-};
-export default function ForSale() {
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  return resultsMetadata(await searchParams);
+}
+export default async function ForSale({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const raw = await searchParams;
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(raw))
+    if (typeof value === "string") params.set(key, value);
+  params.delete("view");
+  const validated = parsePropertyQuery(params);
+  let initial: { query: string; data: PropertyResults } | undefined;
+  // Render traditional results and their image URLs before client hydration.
+  // Natural-language requests keep the existing cached API parsing path.
+  if (validated.success && !validated.data.q && raw.view !== "map") {
+    try {
+      initial = {
+        query: params.toString(),
+        data: JSON.parse(
+          JSON.stringify(await searchProperties(validated.data)),
+        ),
+      };
+    } catch {
+      /* Client fetch displays the recoverable error state. */
+    }
+  }
   return (
     <Suspense
       fallback={
@@ -17,7 +47,7 @@ export default function ForSale() {
         </main>
       }
     >
-      <ResultsPage mapboxToken={publicMapboxToken()} />
+      <ResultsPage mapboxToken={publicMapboxToken()} initial={initial} />
     </Suspense>
   );
 }
